@@ -8,16 +8,21 @@ import websockets
 
 
 class ExampleClient(GDSClient.WebsocketClient):
-    def __init__(self, url="ws://127.0.0.1:8080/gate"):
-        super().__init__(url)
+    def __init__(self, login_info = {
+        "url": "ws://127.0.0.1:8080/gate",
+        "username": "user",
+        "password": None
+    }):
+        super().__init__(login_info.get('url'))
         self.loggedin = False
-        loginreply = asyncio.get_event_loop().run_until_complete(self.login())
+        loginreply = asyncio.get_event_loop().run_until_complete(self.login(login_info))
         self.login_reply(loginreply)
 
-    async def login(self):
+    async def login(self, login_info):
         print("Sending login message..")
-        logindata = GDSClient.MessageUtil.create_simple_message(
-            GDSClient.DataType.CONNECTION, GDSClient.MessageUtil.create_simple_login())
+        logindata = GDSClient.MessageUtil.create_message_from_header_and_data(
+            GDSClient.MessageUtil.create_header(GDSClient.DataType.CONNECTION, username=login_info.get('username')),
+            GDSClient.MessageUtil.create_login_data(reserved=[login_info.get('password')]))
         return await self.send(logindata)
 
     def login_reply(self, login_reply):
@@ -32,9 +37,9 @@ class ExampleClient(GDSClient.WebsocketClient):
             self.loggedin = False
 
     async def attachment_req(self, attachmentstr):
-        insertdata = GDSClient.MessageUtil.create_simple_attachment_request(
+        insertdata = GDSClient.MessageUtil.create_attachment_request_data(
             attachmentstr)
-        insertmsg = GDSClient.MessageUtil.create_simple_message(
+        insertmsg = GDSClient.MessageUtil.create_message_from_header_and_data(
             GDSClient.DataType.ATTACHMENT_REQUEST, insertdata)
         return await self.send(insertmsg)
 
@@ -42,8 +47,8 @@ class ExampleClient(GDSClient.WebsocketClient):
         pass
 
     async def event(self, eventstr):
-        insertdata = GDSClient.MessageUtil.create_simple_event(eventstr)
-        insertmsg = GDSClient.MessageUtil.create_simple_message(
+        insertdata = GDSClient.MessageUtil.create_event_data(eventstr)
+        insertmsg = GDSClient.MessageUtil.create_message_from_data(
             GDSClient.DataType.EVENT, insertdata)
         return await self.send(insertmsg)
 
@@ -55,14 +60,14 @@ class ExampleClient(GDSClient.WebsocketClient):
         print("Records: " + str(responseBody[1][0]))
 
     async def query(self, querystr):
-        querydata = GDSClient.MessageUtil.create_simple_select_query(querystr)
-        querymsg = GDSClient.MessageUtil.create_simple_message(
+        querydata = GDSClient.MessageUtil.create_select_query_data(querystr)
+        querymsg = GDSClient.MessageUtil.create_message_from_data(
             GDSClient.DataType.QUERY_REQUEST, querydata)
         return await self.send(querymsg)
 
     async def next_query(self, contextdesc):
-        querydata = GDSClient.MessageUtil.create_simple_next_query(contextdesc)
-        querymsg = GDSClient.MessageUtil.create_simple_message(
+        querydata = GDSClient.MessageUtil.create_next_query_data(contextdesc)
+        querymsg = GDSClient.MessageUtil.create_message_from_data(
             GDSClient.DataType.NEXT_QUERY_PAGE_REQUEST, querydata)
         return await self.send(querymsg)
 
@@ -73,21 +78,27 @@ class ExampleClient(GDSClient.WebsocketClient):
               str(responseBody[1][0]) + " records total.")
         print("Records: " + str(responseBody[1][5]))
 
-    async def custom_message(self, type, data):
-        msg = GDSClient.MessageUtil.create_simple_message(type, data)
+    async def custom_message(self, header_type, data):
+        msg = GDSClient.MessageUtil.create_message_from_data(header_type, data)
         return await self.send(msg)
 
 
 def print_usage():
     print("Usage: python ./simple_client.py [-url <url>]" +
-          " ( -query <querySTR> | -insert <insertSTR> | -update <updateSTR> | -merge <mergeSTR> )")
+          " [-user <username>]" +
+          " ( -attachment <attachSTR> | -query <querySTR> | -insert <insertSTR> | -merge <mergeSTR> | -update <updateSTR> )")
 
 
 def main(args):
-    url = "ws://127.0.0.1:8080/gate"
     mode = None
     nextquery = False
     sqlstring = ""
+
+    login_info = {
+        "url": "ws://127.0.0.1:8080/gate",
+        "username": "user",
+        "password": None
+    }
 
     ii = 0
     try:
@@ -97,7 +108,7 @@ def main(args):
                 raise Exception
             if(currentParam == "-url"):
                 ii += 1
-                url = args[ii]
+                login_info["url"] = args[ii]
             elif(currentParam in ["-query", "-queryall"]):
                 ii += 1
                 if mode is not None:
@@ -136,7 +147,7 @@ def main(args):
         print_usage()
         return
 
-    client = ExampleClient(url)
+    client = ExampleClient(login_info)
 
     if(client.loggedin):
         if(mode == "q"):
@@ -145,10 +156,12 @@ def main(args):
             client.query_reply(reply)
             replybody = reply[10][1]
             if(nextquery):
-                print("Sending next query page request..")
-                nextreply = asyncio.get_event_loop().run_until_complete(client.next_query(replybody[3]))
-                replybody = nextreply[10][1]
-                client.query_reply(nextreply)
+                while (replybody[2]):
+                    print("Sending next query page request..")
+                    nextreply = asyncio.get_event_loop().run_until_complete(
+                        client.next_query(replybody[3]))
+                    replybody = nextreply[10][1]
+                    client.query_reply(nextreply)
 
         elif(mode == "e"):
             print("Sending event..")
@@ -157,7 +170,8 @@ def main(args):
 
         elif(mode == "a"):
             print("Sending attachment request..")
-            reply = asyncio.get_event_loop().run_until_complete(client.attachment_req(sqlstring))
+            reply = asyncio.get_event_loop().run_until_complete(
+                client.attachment_req(sqlstring))
             replybody = reply[10][1]
             if(replybody is None):
                 pass
@@ -168,4 +182,9 @@ def main(args):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main(sys.argv[1:])   
+
+# TODO -user "username"
+# TODO -password None
+# TODO open attachment
+# TODO print formatting
