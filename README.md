@@ -1,3 +1,23 @@
+- [Installation](#installation)
+- [Login to the GDS](#login-to-the-gds)
+- [Communication](#communication)
+  * [Console Client](#console-client)
+    + [Easy mode](#easy-mode)
+      - [URL, username, password](#url--username--password)
+      - [INSERT](#insert)
+      - [UPDATE](#update)
+      - [MERGE](#merge)
+      - [SELECT query](#select-query)
+      - [SELECT attachment](#select-attachment)
+  * [Detailed mode](#detailed-mode)
+    + [Message Headers](#message-headers)
+    + [Message Data](#message-data)
+      - [INSERT, UPDATE, MERGE](#insert--update--merge)
+      - [SELECT query](#select-query-1)
+      - [SELECT attachment](#select-attachment-1)
+    + [Sending custom messages](#sending-custom-messages)
+
+
 ## Installation
 
 To install and use the `Python` library you have to install two components our classes depend on, the MessagePack wrappers for the messages and the WebSocket protocol for the communication.
