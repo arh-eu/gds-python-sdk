@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import asyncio
 import msgpack
 import websockets
 import uuid
@@ -26,96 +27,273 @@ class DataType(Enum):
 
 
 class WebsocketClient:
-    def __init__(self, url):
-        self.url = url
+    def __init__(self, **kwargs):
+        self.url = kwargs.get('url', "ws://127.0.0.1:8080/gate")
+        self.username = kwargs.get('username', "user")
+        self.password = kwargs.get('password')
+        self.timeout = kwargs.get('timeout', 30)
+        self.args = kwargs
 
-    async def send(self, data, reply_expected=True):
+    async def run(self):
         async with websockets.connect(self.url) as ws:
-            await ws.send(MessageUtil.pack(data))
-            if(reply_expected):
-                return MessageUtil.unpack(await ws.recv())
+            logindata = MessageUtil.create_message_from_header_and_data(
+                MessageUtil.create_header(
+                    DataType.CONNECTION, username=self.username),
+                MessageUtil.create_login_data(reserved=[self.password]))
+            print("Sending <login> message..")
+            await self.send(ws, logindata)
+            try:
+                print("Waiting <login> reply..")
+                login_reply = await self.wait_for_reply(ws)
+            except TimeoutError as e:
+                print('Login message ACK timed out!')
+                raise e
+            else:
+                if (self.is_ack_ok(login_reply)):
+                    print("The login was successful!")
+                    await self.client_code(ws)
+                else:
+                    print("Login unsuccessful!\nDetails:")
+                    print("-" + str(login_reply[10][1]))
+                    print("-" + str(login_reply[10][2]))
 
-    async def recv(self, ws):
+    async def client_code(self, ws: websockets.WebSocketClientProtocol):
+        raise NotImplementedError()
+
+    async def send(self, ws: websockets.WebSocketClientProtocol, data):
+        await ws.send(MessageUtil.pack(data))
+
+    async def recv(self, ws: websockets.WebSocketClientProtocol):
         return MessageUtil.unpack(await ws.recv())
+
+    async def wait_for_reply(self, ws: websockets.WebSocketClientProtocol):
+        try:
+            return await asyncio.wait_for(self.recv(ws), self.timeout)
+        except Exception as e:
+            raise TimeoutError(
+                f"The given timeout ({self.timeout} seconds) has passed without any response from the server!")
+
+    """
+    Methods for sending data
+    """
+    async def send_message(self, ws: websockets.WebSocketClientProtocol, header: list, data):
+        msg = MessageUtil.create_message_from_header_and_data(header, data)
+        await self.send(ws, msg)
+
+    async def query(self, ws: websockets.WebSocketClientProtocol, querystr: str, **queryargs):
+        querydata = MessageUtil.create_select_query_data(querystr, **queryargs)
+        querymsg = MessageUtil.create_message_from_data(
+            DataType.QUERY_REQUEST, querydata)
+        await self.send(ws, querymsg)
+
+    async def next_query(self, ws: websockets.WebSocketClientProtocol, context: list):
+        nextquery = MessageUtil.create_next_query_data(context)
+        msg = MessageUtil.create_message_from_data(
+            DataType.NEXT_QUERY_PAGE_REQUEST, nextquery)
+        await self.send(ws, msg)
+
+    async def event(self, ws: websockets.WebSocketClientProtocol, eventstr: str, **eventargs):
+        eventdata = MessageUtil.create_event_data(
+            eventstr, **eventargs, files=self.args.get('attachments'))
+        eventmsg = MessageUtil.create_message_from_data(
+            DataType.EVENT, eventdata)
+        await self.send(ws, eventmsg)
+
+    async def attachment(self, ws: websockets.WebSocketClientProtocol, attachstr: str, **attachargs):
+        attachdata = MessageUtil.create_attachment_request_data(
+            attachstr, **attachargs)
+        attachmsg = MessageUtil.create_message_from_data(
+            DataType.ATTACHMENT_REQUEST, attachdata)
+        await self.send(ws, attachmsg)
+
+    """
+    other utilities
+    """
+
+    def is_ack_ok(self, ack_mesage, ok_statuses=[200]):
+        return (ack_mesage[10] is not None) and (ack_mesage[10][0] in ok_statuses)
+
+    async def send_and_wait_event(self, ws: websockets.WebSocketClientProtocol, eventstr: str):
+        await self.event(ws, eventstr)
+        self.event_ack(await self.wait_for_reply(ws))
+
+    async def send_and_wait_attachment(self, ws: websockets.WebSocketClientProtocol, attachstr: str):
+        await self.attachment(ws, attachstr)
+        should_wait = self.attachment_ack(await self.wait_for_reply(ws))
+        if(should_wait):
+            self.attachment_response(await self.wait_for_reply(ws))
+
+    async def send_and_wait_query(self, ws: websockets.WebSocketClientProtocol, querystr: str, all=False):
+        await self.query(ws, querystr)
+        more_page, context = self.query_ack(await self.wait_for_reply(ws))
+        if(all):
+            while(more_page):
+                await self.next_query(ws, context)
+                more_page, context = self.query_ack(await self.wait_for_reply(ws))
+    
+    async def send_and_wait_message(self, ws: websockets.WebSocketClientProtocol, **kwargs):
+        if(kwargs.get('header') and kwargs.get('data')):
+            await self.send_message(ws, kwargs.get('header'), kwargs.get('data'))
+        elif(kwargs.get('message')):
+            await self.send(ws, kwargs.get('message'))
+        else:
+            raise ValueError("Neither the 'header' and 'body' nor the 'message' value were specified!")
+        response = await self.wait_for_reply(ws)
+        if(kwargs.get('callback') is not None):
+            kwargs.get('callback')(response)
+
+
+    def save_attachment(self, path: str, attachment: int, format="bmp", use_timestamp=True):
+        filepath = path
+        if(use_timestamp):
+            filepath += str(int(datetime.now().timestamp()))
+        filepath += "." + format
+        print(f"Saving attachment as `{filepath}`..")
+        try:
+            with open(filepath, "xb") as file:
+                file.write(attachment)
+            print("Attachment successfully saved!")
+        except Exception as e:
+            print("Saving was unsuccessful!")
+            raise e
+
+    """
+    default methods
+    """
+
+    def event_ack(self, response: list):
+        response_body = response[10]
+        if(not self.is_ack_ok(response, [200, 201, 202])):
+            print("Error during the attachment request!")
+            print("Details: " + response_body[2])
+        else:
+            print(
+                f"Event returned {(len(response_body[1]))} results total.")
+            print("Results:")
+            for r in response_body[1]:
+                print(r)
+
+    def attachment_ack(self, response: list) -> bool:
+        response_body = response[10]
+        if(not self.is_ack_ok(response, [200, 201, 202])):
+            print("Error during the attachment request!")
+            print("Details: " + response_body[2])
+            return False
+        else:
+            if(response_body[1][1].get('attachment')):
+                attachment = response_body[1][1].get('attachment')
+                print(f"We got the attachment!")
+                self.save_attachment("attachments/" + response_body[1][1].get(
+                    'attachmentid'), attachment)
+                return False
+            else:
+                print("Attachment not yet received..")
+                return True
+
+    def attachment_response(self, response: list):
+        response_body = response[10]
+        attachment = response_body[0].get('attachment')
+        print(f"We got the attachment!")
+        self.save_attachment(
+            "attachments/" + response_body[0].get('attachmentid'), attachment)
+
+    def query_ack(self, response: list):
+        response_body = response[10]
+        if not self.is_ack_ok(response):
+            print("Error during the query!")
+            print("Details: " + response_body[2])
+            return False, None
+        else:
+            print(
+                f"Query was successful! Total of {response_body[1][0]} records returned. Records:")
+            for hit in response_body[1][5]:
+                print(hit)
+            return response_body[1][2], response_body[1][3]
 
 
 class MessageUtil:
     @staticmethod
     def pack(data):
-        return msgpack.packb(data)
+        return msgpack.packb(data, use_bin_type=True)
 
     @staticmethod
     def unpack(data):
         return msgpack.unpackb(data, raw=False)
 
     @staticmethod
-    def create_header(header_type,
-                             username="user", msgid=None, create_time=None, request_time=None,
-                             fragmented=False, first_fragment=None, last_fragment=None, offset=None,
-                             full_data_size=None):
+    def create_header(header_type: DataType, **kwargs):
         now = int(datetime.now().timestamp())
-
-        if(create_time == None):
-            create_time = now
-
-        if(request_time == None):
-            request_time = now
-
-        if(msgid == None):
-            # message ID has to follow the UUID format
-            msgid = str(uuid.uuid4())
-
-        return [username, msgid, create_time, request_time, fragmented, first_fragment, last_fragment, offset, full_data_size, header_type.value]
+        return [
+            kwargs.get('username', "user"),
+            kwargs.get('msgid', str(uuid.uuid4())),
+            kwargs.get('create_time', now),
+            kwargs.get('request_time', now),
+            kwargs.get('fragmented', False),
+            kwargs.get('first_fragment'),
+            kwargs.get('last_fragment'),
+            kwargs.get('offset'),
+            kwargs.get('full_data_size'),
+            header_type.value
+        ]
 
     @staticmethod
-    def create_message_from_header_and_data(header, data):
+    def create_message_from_header_and_data(header: list, data: list):
         msg = [] + header
         msg.append(data)
         return msg
 
     @staticmethod
-    def create_login_data(serve_on_same=False, version=1, fragment_support=False, fragment_unit=None, reserved=[None]):
-        return [serve_on_same, version, fragment_support, fragment_unit, reserved]
+    def create_login_data(**kwargs):
+        return [
+            kwargs.get('serve_on_same', False),
+            kwargs.get('version', 1),
+            kwargs.get('fragment_support', False),
+            kwargs.get('fragment_unit', None),
+            kwargs.get('reserved', [None])
+        ]
 
     @staticmethod
-    def create_select_query_data(querystr, consistency="PAGES", timeout=60000):
-        return [querystr, consistency, timeout]
+    def create_select_query_data(querystr: str, **kwargs):
+        return [
+            querystr,
+            kwargs.get('consistency', "PAGES"),
+            kwargs.get('timeout', 60000)
+        ]
 
     @staticmethod
-    def create_next_query_data(context, timeout=60000):
-        return [context, timeout]
+    def create_next_query_data(context: list, **kwargs):
+        return [
+            context,
+            kwargs.get('timeout', 60000)
+        ]
 
     @staticmethod
-    def create_event_data(eventstr, binary_contents={}, priority_levels=[]):
-        return [eventstr, binary_contents, priority_levels]
+    def create_event_data(eventstr: str, **kwargs):
+        binary_contents = kwargs.get('binary_contents', {})
+        if(kwargs.get('files')):
+            for fname in kwargs.get('files').split(';'):
+                try:
+                    with open("attachments/" + fname, "rb") as file:
+                        hexname = MessageUtil.hex(fname)
+                        binary_contents[hexname] = file.read()
+                except Exception as e:
+                    raise FileNotFoundError(
+                        f"The file named '{fname}' does not exist or could not be opened!")
+
+        return [
+            eventstr,
+            binary_contents,
+            kwargs.get('priority_levels', [])
+        ]
 
     @staticmethod
-    def create_attachment_request_data(attstr):
-        return [attstr]
+    def create_attachment_request_data(attstr: str):
+        return attstr
 
     @staticmethod
-    def create_message_from_data(header_type, data):
+    def create_message_from_data(header_type: DataType, data):
         return MessageUtil.create_message_from_header_and_data(MessageUtil.create_header(header_type), data)
 
-
-class Example:
-    def connection_message(self):
-        header = MessageUtil.create_header(DataType.CONNECTION)
-        data = [False, 1, False, None]
-        return MessageUtil.create_message_from_header_and_data(header, data)
-
-    def event_message(self):
-        header = MessageUtil.create_header(DataType.EVENT)
-        data = ["INSERT INTO table('col1', col2') VALUES('a', 'b')"]
-        return MessageUtil.create_message_from_header_and_data(header, data)
-
-    def query_message(self):
-        header = MessageUtil.create_header(DataType.QUERY_REQUEST)
-        data = ["SELECT * FROM table WHERE id IS NOT NULL", "NONE", 60000]
-        return MessageUtil.create_message_from_header_and_data(header, data)
-
-    def next_query_message(self):
-        header = MessageUtil.create_header(
-            DataType.NEXT_QUERY_PAGE_REQUEST)
-        data = [["query_context_str" for x in range(9)], 60000]
-        return MessageUtil.create_message_from_header_and_data(header, data)
+    @staticmethod
+    def hex(text: str) -> str:
+        return text.encode().hex()
