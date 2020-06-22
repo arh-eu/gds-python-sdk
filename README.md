@@ -3,13 +3,16 @@
 - [Login to the GDS](#login-to-the-gds)
   * [Console Client](#console-client)
     + [Easy mode](#easy-mode)
-      - [URL, username, password](#url--username--password)
+      - [URL, username, password, timeout](#url--username--password--timeout)
       - [INSERT](#insert)
       - [UPDATE](#update)
       - [MERGE](#merge)
+      - [Sending Attachments with Events](#sending-attachments-with-events)
       - [SELECT query](#select-query)
       - [SELECT attachment](#select-attachment)
   * [Detailed mode](#detailed-mode)
+    + [Class structure](#class-structure)
+      - [Response handlers](#response-handlers)
     + [Message Headers](#message-headers)
     + [Message Data](#message-data)
       - [INSERT, UPDATE, MERGE](#insert--update--merge)
@@ -22,11 +25,11 @@
 
 To install and use the `Python` library you have to install two components our classes depend on, the MessagePack wrappers for the messages and the WebSocket protocol for the communication.
 
-The first one, the `msgpack` module can be installed by typing `$ pip install msgpack` into your terminal or command line.
+The first one, the `msgpack` module can be installed by typing `$ pip install msgpack` into your terminal or command line (the github repo can be found [here](https://github.com/msgpack/msgpack-python)). The version used for this module was `0.6.2`.
 
-For the `websockets` library, you need to enter the `$ pip install websockets` command.
+For the `websockets` library, you need to enter the `$ pip install websockets` command (its official site is [here](https://websockets.readthedocs.io/en/stable/intro.html)). The client uses version `8.1` in its code.
 
-Please keep in mind that you need to have `Python 3.6.1` or newer to install the dependencies.
+Please keep in mind that you need to have `Python 3.6.1` or newer to install the dependencies (you can install it from [here](https://www.python.org/downloads/)).
 
 ## Communication
 
@@ -363,8 +366,8 @@ If you do not want to wait for the reply you should invoke the `send_message(..)
     await self.send_message(ws, header, insertdata)
 ```
 
-The `ConsoleClient` is not made for embedded usage, as the sending and receiving methods are not outsourced to separate threads running endlessly with a possible queue behind them, sending messages and creating responses, and calling the appropriate callbacks. 
+The `ConsoleClient` is not made for embedded usage, as the sending and receiving methods are not outsourced to separate threads running endlessly with a possible queue behind them, sending messages and creating responses, and calling the appropriate callbacks. Therefore they will block the main thread until the timeout expires.
 
 Sending many requests in a very short timeframe could lead to unexpected behaviours here, as the order of the replies is not fixed, a request sent later might be processed before the one you sent first, therefore the replies will not arrive in the order of the requests.
 
-If you want to use the client in a bigger application as a module, you should modify the client for your needs.
+If you want to use the client in a bigger application as a module, you should inherit the `WebsocketClient` class and customize it for your needs.
