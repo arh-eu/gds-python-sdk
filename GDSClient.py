@@ -28,7 +28,7 @@ class DataType(Enum):
 
 class WebsocketClient:
     def __init__(self, **kwargs):
-        self.url = kwargs.get('url', "ws://127.0.0.1:8080/gate")
+        self.url = kwargs.get('url', "ws://127.0.0.1:8888/gate")
         self.username = kwargs.get('username', "user")
         self.password = kwargs.get('password')
         self.timeout = kwargs.get('timeout', 30)

@@ -76,7 +76,7 @@ def main():
         "-password", help="The password you would like to use when logging in to the GDS.")
     parser.add_argument("-timeout", default=30, type=int,
                         help="The timeout of your queries (in seconds) before the waiting for the response will be interrupted.")
-    parser.add_argument("-url", default="ws://127.0.0.1:8080/gate",
+    parser.add_argument("-url", default="ws://127.0.0.1:8888/gate",
                         help="The URL of the GDS instance you would like to connect to.")
 
     group = parser.add_mutually_exclusive_group(required=True)
