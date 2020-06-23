@@ -25,7 +25,7 @@ class ConsoleClient(GDSClient.WebsocketClient):
         super().__init__(**kwargs)
 
     async def client_code(self, ws: websockets.WebSocketClientProtocol):
-        """if(self.args.get('event')):
+        if(self.args.get('event')):
             await self.send_and_wait_event(ws, self.args.get('event'))
         elif(self.args.get('insert')):
             await self.send_and_wait_event(ws, self.args.get('insert'))
@@ -41,11 +41,6 @@ class ConsoleClient(GDSClient.WebsocketClient):
             await self.send_and_wait_query(ws, self.args.get('queryall'), all=True)
         else:
             pass
-        """
-        header = GDSClient.MessageUtil.create_header(GDSClient.DataType.QUERY_REQUEST)
-        querydata = GDSClient.MessageUtil.create_select_query_data("SELECT * FROM table")
-
-        await self.send_and_wait_message(ws, header=header, data=querydata, callback=self.query_ack)
 
     # if you want custom logic with the response, you add your implementation here
     # by default, it will print all results returned.
