@@ -161,7 +161,7 @@ class WebsocketClient:
     def save_attachment(self, path: str, attachment: int, format="", use_timestamp=True):
         filepath = path
         if(use_timestamp):
-            filepath += str(int(datetime.now().timestamp()))
+            filepath += "_" + str(int(datetime.now().timestamp()))
 
         extension = "unknown"
         if (format == "image/bmp" ):
