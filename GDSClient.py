@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 
 import asyncio
+import json
 import msgpack
-import websockets
-import uuid
+import pathlib
+import ssl
 import time
+import uuid
+import websockets
 
 from datetime import datetime
 from enum import Enum
@@ -32,10 +35,17 @@ class WebsocketClient:
         self.username = kwargs.get('username', "user")
         self.password = kwargs.get('password')
         self.timeout = kwargs.get('timeout', 30)
+        self.ssl = None
+
+        if(kwargs.get('tls')):
+            self.ssl = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            cert = pathlib.Path(__file__).with_name(kwargs.get('tls'))
+            self.ssl.load_verify_locations(cert)
+
         self.args = kwargs
 
     async def run(self):
-        async with websockets.connect(self.url) as ws:
+        async with websockets.connect(self.url, ssl=self.ssl) as ws:
             logindata = MessageUtil.create_message_from_header_and_data(
                 MessageUtil.create_header(
                     DataType.CONNECTION, username=self.username),
@@ -79,18 +89,21 @@ class WebsocketClient:
     async def send_message(self, ws: websockets.WebSocketClientProtocol, header: list, data):
         msg = MessageUtil.create_message_from_header_and_data(header, data)
         await self.send(ws, msg)
+        return msg
 
     async def query(self, ws: websockets.WebSocketClientProtocol, querystr: str, **queryargs):
         querydata = MessageUtil.create_select_query_data(querystr, **queryargs)
         querymsg = MessageUtil.create_message_from_data(
             DataType.QUERY_REQUEST, querydata)
         await self.send(ws, querymsg)
+        return querymsg
 
     async def next_query(self, ws: websockets.WebSocketClientProtocol, context: list):
         nextquery = MessageUtil.create_next_query_data(context)
         msg = MessageUtil.create_message_from_data(
             DataType.NEXT_QUERY_PAGE_REQUEST, nextquery)
         await self.send(ws, msg)
+        return msg
 
     async def event(self, ws: websockets.WebSocketClientProtocol, eventstr: str, **eventargs):
         eventdata = MessageUtil.create_event_data(
@@ -98,6 +111,7 @@ class WebsocketClient:
         eventmsg = MessageUtil.create_message_from_data(
             DataType.EVENT, eventdata)
         await self.send(ws, eventmsg)
+        return eventmsg
 
     async def attachment(self, ws: websockets.WebSocketClientProtocol, attachstr: str, **attachargs):
         attachdata = MessageUtil.create_attachment_request_data(
@@ -105,6 +119,7 @@ class WebsocketClient:
         attachmsg = MessageUtil.create_message_from_data(
             DataType.ATTACHMENT_REQUEST, attachdata)
         await self.send(ws, attachmsg)
+        return attachmsg
 
     """
     other utilities
@@ -123,10 +138,10 @@ class WebsocketClient:
         if(should_wait):
             self.attachment_response(await self.wait_for_reply(ws))
 
-    async def send_and_wait_query(self, ws: websockets.WebSocketClientProtocol, querystr: str, all=False):
-        await self.query(ws, querystr)
-        more_page, context = self.query_ack(await self.wait_for_reply(ws))
-        if(all):
+    async def send_and_wait_query(self, ws: websockets.WebSocketClientProtocol, querystr: str, **kwargs):
+        message = await self.query(ws, querystr)
+        more_page, context = self.query_ack(await self.wait_for_reply(ws), original=message)
+        if(kwargs.get('all')):
             while(more_page):
                 await self.next_query(ws, context)
                 more_page, context = self.query_ack(await self.wait_for_reply(ws))
@@ -143,11 +158,18 @@ class WebsocketClient:
             kwargs.get('callback')(response)
 
 
-    def save_attachment(self, path: str, attachment: int, format="bmp", use_timestamp=True):
+    def save_attachment(self, path: str, attachment: int, format="", use_timestamp=True):
         filepath = path
         if(use_timestamp):
             filepath += str(int(datetime.now().timestamp()))
-        filepath += "." + format
+
+        extension = "unknown"
+        if (format == "image/bmp" ):
+            extension = "bmp"
+        elif (format == "image/png"):
+            extension = "png"
+
+        filepath += "." + extension
         print(f"Saving attachment as `{filepath}`..")
         try:
             with open(filepath, "xb") as file:
@@ -156,12 +178,22 @@ class WebsocketClient:
         except Exception as e:
             print("Saving was unsuccessful!")
             raise e
+    
+    def save_object_to_json(self, name: str, obj: any):
+        try:
+            filepath = f"exports/{name}.json"
+            print(f"Saving response as `{filepath}`..")
+            with open(filepath, "x") as file:
+                json.dump(obj, file, indent=4)
+        except Exception as e:
+            print(f"Could not save {filepath}! Details:")
+            print(e)
 
     """
     default methods
     """
 
-    def event_ack(self, response: list):
+    def event_ack(self, response: list, **kwargs):
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
             print("Error during the attachment request!")
@@ -173,7 +205,7 @@ class WebsocketClient:
             for r in response_body[1]:
                 print(r)
 
-    def attachment_ack(self, response: list) -> bool:
+    def attachment_ack(self, response: list, **kwargs) -> bool:
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
             print("Error during the attachment request!")
@@ -184,20 +216,21 @@ class WebsocketClient:
                 attachment = response_body[1][1].get('attachment')
                 print(f"We got the attachment!")
                 self.save_attachment("attachments/" + response_body[1][1].get(
-                    'attachmentid'), attachment)
+                    'attachmentid'), attachment, format=response_body[1][1].get('meta'))
                 return False
             else:
                 print("Attachment not yet received..")
                 return True
 
-    def attachment_response(self, response: list):
+    def attachment_response(self, response: list, **kwargs):
         response_body = response[10]
         attachment = response_body[0].get('attachment')
         print(f"We got the attachment!")
         self.save_attachment(
-            "attachments/" + response_body[0].get('attachmentid'), attachment)
+            "attachments/" + response_body[0].get('attachmentid'), attachment, format=response_body[0].get('meta'))
 
-    def query_ack(self, response: list):
+    def query_ack(self, response: list, **kwargs):
+        max_length = 12
         response_body = response[10]
         if not self.is_ack_ok(response):
             print("Error during the query!")
@@ -205,9 +238,11 @@ class WebsocketClient:
             return False, None
         else:
             print(
-                f"Query was successful! Total of {response_body[1][0]} records returned. Records:")
-            for hit in response_body[1][5]:
-                print(hit)
+                f"Query was successful! Total of {response_body[1][0]} record(s) returned.")
+            
+            if(kwargs.get('original')):
+                msgid = kwargs.get('original')[1]
+                self.save_object_to_json(msgid, response_body)
             return response_body[1][2], response_body[1][3]
 
 

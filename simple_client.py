@@ -44,17 +44,17 @@ class ConsoleClient(GDSClient.WebsocketClient):
 
     # if you want custom logic with the response, you add your implementation here
     # by default, it will print all results returned.
-    def event_ack(self, response: list):
-        super().event_ack(response)
+    def event_ack(self, response: list, **kwargs):
+        super().event_ack(response, **kwargs)
 
     # Returns whether the reply contained the attachment requested or not.
     # If there is no response, then you have to wait for one from the GDS.
-    def attachment_ack(self, response: list) -> bool:
-        return super().attachment_ack(response)
+    def attachment_ack(self, response: list, **kwargs) -> bool:
+        return super().attachment_ack(response, **kwargs)
 
     # the attachment response if it was not present during the attachment ACK message
-    def attachment_response(self, response: list):
-        super().attachment_response(response)
+    def attachment_response(self, response: list, **kwargs):
+        super().attachment_response(response, **kwargs)
 
     # if you want custom logic with the response, you add your implementation here
     # by default, it will print all records returned.
@@ -62,8 +62,8 @@ class ConsoleClient(GDSClient.WebsocketClient):
     # - a boolean whether the query can be continued or not
     # - The context holder of the query reply (if present, None otherwise)
     # This way you can use those to get all records by querying them in a while loop
-    def query_ack(self, response: list):
-        return super().query_ack(response)
+    def query_ack(self, response: list, **kwargs):
+        return super().query_ack(response, **kwargs)
 
 
 def main():
@@ -78,6 +78,11 @@ def main():
                         help="The timeout of your queries (in seconds) before the waiting for the response will be interrupted.")
     parser.add_argument("-url", default="ws://127.0.0.1:8888/gate",
                         help="The URL of the GDS instance you would like to connect to.")
+    parser.add_argument("-tls", default=None,
+                        help="The path of the certificate to use if you want to use secure connection.")
+                        
+    parser.add_argument("-export", action='store_true', default=None,
+                        help="nemtudommajdkitalálom")
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-hex", help="Converts the given string to HEX format.")
