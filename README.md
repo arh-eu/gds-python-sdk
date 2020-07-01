@@ -34,7 +34,7 @@ Please keep in mind that you need to have `Python 3.6.1` or newer to install the
 
 ## Communication
 
-The communication is based on a request-response pattern. You send your request to the GDS, which will reponse with (usually) an acknowledgement message (ACK). Most of the time this ACK message will contain the data you were waiting for as well, so there are no extra messages sent around.
+The communication is based on a request-response pattern. You send your request to the GDS, which will response with (usually) an acknowledgement message (ACK). Most of the time this ACK message will contain the data you were waiting for as well, so there are no extra messages sent around.
 
 Before any other message can be sent, clients are required to send a _login_ message first. Once the authorization is complete, clients can send their messages and await the replies.
 
@@ -169,18 +169,18 @@ A simple `SELECT` attachment query statement can be specified by the following c
 ```sh
 $ python .\simple_client.py -attachment "SELECT * FROM \"events-@attachment\" WHERE id='ATID202001010000000000' and ownerid='EVNT202001010000000000' FOR UPDATE WAIT 86400"
 ```
-Please be careful, as the table name in this examples should be in double quotes, so it should be escaped by backslash, otherwise the parameters will not be parsed right. The reason for this is that the `SQL` standard does not support hypens in table names, therefore it should be treated differently.
+Please be careful, as the table name in this examples should be in double quotes, so it should be escaped by backslash, otherwise the parameters will not be parsed right. The reason for this is that the `SQL` standard does not support hyphens in table names, therefore it should be treated differently.
 
 ### Detailed mode 
 
-Messsages consist two parts, a [header](https://github.com/arh-eu/gds/wiki/Message-Headers) and a [data](https://github.com/arh-eu/gds/wiki/Message-Data).
+Messages consist two parts, a [header](https://github.com/arh-eu/gds/wiki/Message-Headers) and a [data](https://github.com/arh-eu/gds/wiki/Message-Data).
 
 First you will read about the code structure so you will know how to modify it, then you will see how can you create the headers and data parts, after that you can read how to combine those for a whole message that can be sent.
 The followings all assume that the login reply was successful.
 
 #### Class structure
 
-First you should understand the basics of the `WebsocketClient` class. Since the communication over the websocket protocol is asnychronous, most of our methods that send or await messages have to be defined as `async`.
+First you should understand the basics of the `WebsocketClient` class. Since the communication over the websocket protocol is asynchronous, most of our methods that send or await messages have to be defined as `async`.
 
 The functions that are processing the replies do not have to be declared `async`, as it is not an asynchronous activity.
 
@@ -188,7 +188,7 @@ The `WebsocketClient` connects to the GDS on the given URL (that can be specifie
 
 Business logic of the client should be implemented in the `client_code(..)` method. When the method returns, the client will close the active websocket connection and exit. Not overriding the `client_code(..)` will result in a `NotImplementedError()`.
 
-The arguments passed (and parsed) to the client are always available through the `args` dictionary found in `self`. These keys will not have the hypen (`-`) as their prefix, as it will get removed during parsing by the `argparse` module.
+The arguments passed (and parsed) to the client are always available through the `args` dictionary found in `self`. These keys will not have the hyphen (`-`) as their prefix, as it will get removed during parsing by the `argparse` module.
 
 As the messages sent in the communication channels have to be packed and unpacked by the `msgpack` library, the `send(..)` and `recv(..)` methods will automatically do these conversions between the `Python` and `msgpack` types.
 
@@ -243,7 +243,7 @@ print(header)
 # output is the following:
 ["user", "<msgid>", <now>, <now>, False, None, None, None, None, 10]
 ```
-, where `"<msgid>"` is a randomly generated `UUID` string, and `<now>` stands for the current time in milliseconds. Keep in mind that message IDs should be unique, therefore usins `UUID`s for them is a very convinient and easy way.
+, where `"<msgid>"` is a randomly generated `UUID` string, and `<now>` stands for the current time in milliseconds. Keep in mind that message IDs should be unique, therefore using `UUID`s for them is a very convenient and easy way.
 
 
 The creation of a header message with the username `"john_doe"` for a query message can be created like this:
@@ -360,7 +360,7 @@ You can use this method by specifying passing the `ws` descriptor, and by giving
 
 There is also a `callback` parameter, which will get called with the reply of the GDS. You can keep this `None`, in this scenario the response will be ignored.
 
-Since this is an asnychronous call, you should not forget to `await` this response!
+Since this is an asynchronous call, you should not forget to `await` this response!
 
 ```python
 
@@ -384,6 +384,6 @@ If you do not want to wait for the reply you should invoke the `send_message(..)
 
 The `ConsoleClient` is not made for embedded usage, as the sending and receiving methods are not outsourced to separate threads running endlessly with a possible queue behind them, sending messages and creating responses, and calling the appropriate callbacks. Therefore they will block the main thread until the timeout expires.
 
-Sending many requests in a very short timeframe could lead to unexpected behaviours here, as the order of the replies is not fixed, a request sent later might be processed before the one you sent first, therefore the replies will not arrive in the order of the requests.
+Sending many requests in a very short time frame could lead to unexpected behavior here, as the order of the replies is not fixed, a request sent later might be processed before the one you sent first, therefore the replies will not arrive in the order of the requests.
 
 If you want to use the client in a bigger application as a module, you should inherit the `WebsocketClient` class and customize it for your needs.
