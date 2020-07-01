@@ -37,6 +37,14 @@ class WebsocketClient:
         self.timeout = kwargs.get('timeout', 30)
         self.ssl = None
 
+        
+        self.mime_extensions = dict({
+            "image/bmp" : "bmp",
+            "image/png" : "png",
+            "image/jpg" : "jpg",
+            "image/jpeg" : "jpg",
+        })
+
         if(kwargs.get('tls')):
             self.ssl = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             cert = pathlib.Path(__file__).with_name(kwargs.get('tls'))
@@ -79,9 +87,10 @@ class WebsocketClient:
     async def wait_for_reply(self, ws: websockets.WebSocketClientProtocol):
         try:
             return await asyncio.wait_for(self.recv(ws), self.timeout)
+        except asyncio.TimeoutError as e:
+            raise TimeoutError(f"The given timeout ({self.timeout} seconds) has passed without any response from the server!")
         except Exception as e:
-            raise TimeoutError(
-                f"The given timeout ({self.timeout} seconds) has passed without any response from the server!")
+            raise e
 
     """
     Methods for sending data
@@ -163,10 +172,8 @@ class WebsocketClient:
         if(use_timestamp):
             filepath += "_" + str(int(datetime.now().timestamp()))
 
-        if (format == "image/bmp"):
-            extension = "bmp"
-        elif (format == "image/png"):
-            extension = "png"
+        if (self.mime_extensions.get('format')):
+            extension = self.mime_extensions.get('format')
 
         filepath += "." + extension
         print(f"Saving attachment as `{filepath}`..")
