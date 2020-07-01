@@ -80,9 +80,6 @@ def main():
                         help="The URL of the GDS instance you would like to connect to.")
     parser.add_argument("-tls", default=None,
                         help="The path of the certificate to use if you want to use secure connection.")
-                        
-    parser.add_argument("-export", action='store_true', default=None,
-                        help="nemtudommajdkitalálom")
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-hex", help="Converts the given string to HEX format.")
