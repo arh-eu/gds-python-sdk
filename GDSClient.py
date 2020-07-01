@@ -196,7 +196,7 @@ class WebsocketClient:
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
             print("Error during the event request!")
-            printErrorInACK(response_body)
+            self.printErrorInACK(response_body)
         else:
             print(
                 f"Event returned {(len(response_body[1]))} results total.")
@@ -208,7 +208,7 @@ class WebsocketClient:
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
             print("Error during the attachment request!")
-            printErrorInACK(response_body)
+            self.printErrorInACK(response_body)
             return False
         else:
             if(response_body[1][1].get('attachment')):
@@ -233,7 +233,7 @@ class WebsocketClient:
         response_body = response[10]
         if not self.is_ack_ok(response):
             print("Error during the query!")
-            printErrorInACK(response_body)
+            self.printErrorInACK(response_body)
             return False, None
         else:
             print(
