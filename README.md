@@ -243,7 +243,7 @@ print(header)
 # output is the following:
 ["user", "<msgid>", <now>, <now>, False, None, None, None, None, 10]
 ```
-, where `"<msgid>"` is a randomly generated `UUID` string, and `<now>` stands for the current time in milliseconds. Keep in mind that message IDs have to follow the UUID format to be accepted.
+, where `"<msgid>"` is a randomly generated `UUID` string, and `<now>` stands for the current time in milliseconds. Keep in mind that message IDs should be unique, therefore usins `UUID`s for them is a very convinient and easy way.
 
 
 The creation of a header message with the username `"john_doe"` for a query message can be created like this:
