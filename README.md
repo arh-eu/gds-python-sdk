@@ -138,14 +138,9 @@ These _binary IDs_ (with the `0x` prefix) have to be in your `EVENT` `SQL` strin
 
 To attach files to your events (named "binary contents") you should use the `-attachments` flag with your `EVENT`.
 The attachments are the names of your files found in the `attachments` folder. These names are automatically converted into `hex` values, and the contents of these files will be sent with your message (see the [wiki](https://github.com/arh-eu/gds/wiki/Message-Data#Event---Data-Type-2)).
-
 ```sh
-#breaking lines only to make it easier to read.
-$ python .\simple_client.py -event "INSERT INTO multi_event (id, images) \
-VALUES('EVNT2006241023125470', array('ATID2006241023125470')); \
-INSERT INTO \"multi_event-@attachment\" (id, meta, data) \
-VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" \
--attachments "picture1.bmp"
+#inserting one attachment to the table
+$ python .\simple_client.py -event "INSERT INTO multi_event (id, front_img1) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments "picture1.bmp"
 ```
 
 If the file you specify is not present, the client will print an error message without sending the message.
