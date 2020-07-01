@@ -123,9 +123,9 @@ You cannot specify `DELETE` statements in the GDS.
 
 The `INSERT`, `UPDATE` and `MERGE` messages are also known as _`EVENT`_ messages. Events can have attachments as well, and you can upload these to the GDS by sending them _with your event_.
 
-The _event ID_ has to follow a format of `"EVNTyyyyMMddHHmmssSSS"`, where the first 4 letters are the abbreviation of "event", while the rest specifies a timestamp code from. This will make `"EVNT20200624102312547"` a valid ID in an event table.
+The _event ID_ has to follow a format of `"EVNTyyMMddHHmmssSSS0"`, where the first 4 letters are the abbreviation of "event", while the rest specifies a timestamp code from. This will make `"EVNT2006241023125470"` a valid ID in an event table.
 
-The _attachment ID_ has the same restriction, the difference is the prefix. Instead of the `EVNT` you should use `ATID`. The ID for the attachment can be `"ATID20200624102312547"`.
+The _attachment ID_ has the same restriction, the difference is the prefix. Instead of the `EVNT` you should use `ATID`. The ID for the attachment can be `"ATID2006241023125470"`.
 
 Since the format is these messages have to follow is very strict, you will have to use `hex` values in your event strings for the _binary  IDs_ of your attachments. These `hex` values are unique identifiers for your binaries. To get the `hex` value of a string you can use the console client with the `-hex` flag to print these values. You can also enter multiple names, separating them by semicolon (`;`):
 
@@ -142,9 +142,9 @@ The attachments are the names of your files found in the `attachments` folder. T
 ```sh
 #breaking lines only to make it easier to read.
 $ python .\simple_client.py -event "INSERT INTO multi_event (id, images) \
-VALUES('EVNT20200624102312547', array('0x70696374757265312e626d70')); \
+VALUES('EVNT2006241023125470', array('ATID2006241023125470')); \
 INSERT INTO \"multi_event-@attachment\" (id, meta, data) \
-VALUES('ATID20200624102312547', 'image/bmp', '0x70696374757265312e626d70' )" \
+VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" \
 -attachments "picture1.bmp"
 ```
 

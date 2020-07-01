@@ -247,7 +247,7 @@ class WebsocketClient:
 
     def printErrorInACK(self, message: list):
         print("Error status code returned: " + str(message[0]))
-        if(len(message>2)):
+        if(len(message)>2):
             print("Error message: " + message[2])
         else:
             print("Server did not specify any error messages!")
