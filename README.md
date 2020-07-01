@@ -7,6 +7,7 @@
       - [INSERT](#insert)
       - [UPDATE](#update)
       - [MERGE](#merge)
+      - [DELETE](#delete)
       - [Sending Attachments with Events](#sending-attachments-with-events)
       - [SELECT query](#select-query)
       - [SELECT attachment](#select-attachment)
@@ -15,7 +16,7 @@
       - [Response handlers](#response-handlers)
     + [Message Headers](#message-headers)
     + [Message Data](#message-data)
-      - [INSERT, UPDATE, MERGE](#insert--update--merge)
+      - [INSERT, UPDATE, MERGE, DELETE](#insert--update--merge--delete)
       - [SELECT query](#select-query-1)
       - [SELECT attachment](#select-attachment-1)
     + [Sending custom messages](#sending-custom-messages)
@@ -114,24 +115,37 @@ $ python .\simple_client.py -merge "MERGE INTO events USING (SELECT 'EVNT2020010
 ```
 The reply will be printed to the console, just as above.
 
+##### DELETE
+
+You cannot specify `DELETE` statements in the GDS.
+
 ##### Sending Attachments with Events
 
 The `INSERT`, `UPDATE` and `MERGE` messages are also known as _`EVENT`_ messages. Events can have attachments as well, and you can upload these to the GDS by sending them _with your event_.
 
-Since the format is these messages have to follow is very strict, you will have to use `hex` values in your event strings for the attachment IDs. These `hex` values are unique identifiers for your attachments (binaries). To get the `hex` value of a string you can use the console client with the `-hex` flag to print these values. You can also enter multiple names, separating them by semicolon (`;`):
+The _event ID_ has to follow a format of `"EVNTyyyyMMddHHmmssSSS"`, where the first 4 letters are the abbreviation of "event", while the rest specifies a timestamp code from. This will make `"EVNT20200624102312547"` a valid ID in an event table.
+
+The _attachment ID_ has the same restriction, the difference is the prefix. Instead of the `EVNT` you should use `ATID`. The ID for the attachment can be `"ATID20200624102312547"`.
+
+Since the format is these messages have to follow is very strict, you will have to use `hex` values in your event strings for the _binary  IDs_ of your attachments. These `hex` values are unique identifiers for your binaries. To get the `hex` value of a string you can use the console client with the `-hex` flag to print these values. You can also enter multiple names, separating them by semicolon (`;`):
 
 ```sh
 $ python .\simple_client.py -hex "picture1.bmp;picture3.bmp"
 The hex value of `picture1.bmp` is: 0x70696374757265312e626d70
 The hex value of `picture3.bmp` is: 0x70696374757265332e626d70
 ```
-These IDs (with the `0x` prefix) have to be in your `EVENT` `SQL` string. 
+These _binary IDs_ (with the `0x` prefix) have to be in your `EVENT` `SQL` string. 
 
 To attach files to your events (named "binary contents") you should use the `-attachments` flag with your `EVENT`.
 The attachments are the names of your files found in the `attachments` folder. These names are automatically converted into `hex` values, and the contents of these files will be sent with your message (see the [wiki](https://github.com/arh-eu/gds/wiki/Message-Data#Event---Data-Type-2)).
 
-```
-$ python .\simple_client.py -event "INSERT" -attachments "picture1.bmp;picture2.bmp"
+```sh
+#breaking lines only to make it easier to read.
+$ python .\simple_client.py -event "INSERT INTO multi_event (id, images) \
+VALUES('EVNT20200624102312547', array('0x70696374757265312e626d70')); \
+INSERT INTO \"multi_event-@attachment\" (id, meta, data) \
+VALUES('ATID20200624102312547', 'image/bmp', '0x70696374757265312e626d70' )" \
+-attachments "picture1.bmp"
 ```
 
 If the file you specify is not present, the client will print an error message without sending the message.
@@ -250,7 +264,9 @@ The data part can be created by the `MessageUtil` class as well, based on what t
 
 Similar to the headers, these use default values to simplify the calls for the general usage.
 
-##### INSERT, UPDATE, MERGE
+##### INSERT, UPDATE, MERGE, DELETE
+
+DELETE is not supported by the GDS, so even if you try to send an event message with a `DELETE` statement, you will receive an error message about it.
 
 The INSERT, UPDATE and MERGE messages have the same format, since they are all _event_ messages. This means, all three can be created by the `create_event_data(..)` method.
 
