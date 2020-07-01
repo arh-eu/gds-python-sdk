@@ -129,8 +129,8 @@ class WebsocketClient:
         return (ack_mesage[10] is not None) and (ack_mesage[10][0] in ok_statuses)
 
     async def send_and_wait_event(self, ws: websockets.WebSocketClientProtocol, eventstr: str):
-        await self.event(ws, eventstr)
-        self.event_ack(await self.wait_for_reply(ws))
+        message = await self.event(ws, eventstr)
+        self.event_ack(await self.wait_for_reply(ws), original=message)
 
     async def send_and_wait_attachment(self, ws: websockets.WebSocketClientProtocol, attachstr: str):
         await self.attachment(ws, attachstr)
@@ -145,26 +145,25 @@ class WebsocketClient:
             while(more_page):
                 await self.next_query(ws, context)
                 more_page, context = self.query_ack(await self.wait_for_reply(ws))
-    
+
     async def send_and_wait_message(self, ws: websockets.WebSocketClientProtocol, **kwargs):
         if(kwargs.get('header') and kwargs.get('data')):
             await self.send_message(ws, kwargs.get('header'), kwargs.get('data'))
         elif(kwargs.get('message')):
             await self.send(ws, kwargs.get('message'))
         else:
-            raise ValueError("Neither the 'header' and 'body' nor the 'message' value were specified!")
+            raise ValueError(
+                "Neither the 'header' and 'body' nor the 'message' value were specified!")
         response = await self.wait_for_reply(ws)
         if(kwargs.get('callback') is not None):
             kwargs.get('callback')(response)
 
-
-    def save_attachment(self, path: str, attachment: int, format="", use_timestamp=True):
+    def save_attachment(self, path: str, attachment: int, format="unknown", use_timestamp=True):
         filepath = path
         if(use_timestamp):
             filepath += "_" + str(int(datetime.now().timestamp()))
 
-        extension = "unknown"
-        if (format == "image/bmp" ):
+        if (format == "image/bmp"):
             extension = "bmp"
         elif (format == "image/png"):
             extension = "png"
@@ -178,7 +177,7 @@ class WebsocketClient:
         except Exception as e:
             print("Saving was unsuccessful!")
             raise e
-    
+
     def save_object_to_json(self, name: str, obj: any):
         try:
             filepath = f"exports/{name}.json"
@@ -196,20 +195,20 @@ class WebsocketClient:
     def event_ack(self, response: list, **kwargs):
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
-            print("Error during the attachment request!")
-            print("Details: " + response_body[2])
+            print("Error during the event request!")
+            printErrorInACK(response_body)
         else:
             print(
                 f"Event returned {(len(response_body[1]))} results total.")
-            print("Results:")
-            for r in response_body[1]:
-                print(r)
+            if(kwargs.get('original')):
+                msgid = kwargs.get('original')[1]
+                self.save_object_to_json(msgid, response_body)
 
     def attachment_ack(self, response: list, **kwargs) -> bool:
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
             print("Error during the attachment request!")
-            print("Details: " + response_body[2])
+            printErrorInACK(response_body)
             return False
         else:
             if(response_body[1][1].get('attachment')):
@@ -234,16 +233,24 @@ class WebsocketClient:
         response_body = response[10]
         if not self.is_ack_ok(response):
             print("Error during the query!")
-            print("Details: " + response_body[2])
+            printErrorInACK(response_body)
             return False, None
         else:
             print(
                 f"Query was successful! Total of {response_body[1][0]} record(s) returned.")
-            
+
             if(kwargs.get('original')):
                 msgid = kwargs.get('original')[1]
                 self.save_object_to_json(msgid, response_body)
             return response_body[1][2], response_body[1][3]
+
+
+    def printErrorInACK(self, message: list):
+        print("Error status code returned: " + str(message[0]))
+        if(len(message>2)):
+            print("Error message: " + message[2])
+        else:
+            print("Server did not specify any error messages!")
 
 
 class MessageUtil:
