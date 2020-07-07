@@ -5,6 +5,7 @@ import json
 import msgpack
 import pathlib
 import ssl
+import sys
 import time
 import uuid
 import websockets
@@ -172,8 +173,9 @@ class WebsocketClient:
         if(use_timestamp):
             filepath += "_" + str(int(datetime.now().timestamp()))
 
-        if (self.mime_extensions.get('format')):
-            extension = self.mime_extensions.get('format')
+        extension = "unknown"
+        if (self.mime_extensions.get(format)):
+            extension = self.mime_extensions.get(format)
 
         filepath += "." + extension
         print(f"Saving attachment as `{filepath}`..")
@@ -200,6 +202,7 @@ class WebsocketClient:
     """
 
     def event_ack(self, response: list, **kwargs):
+        print("Reply:\n: " + json.dumps(response, default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
             print("Error during the event request!")
@@ -212,6 +215,7 @@ class WebsocketClient:
                 self.save_object_to_json(msgid, response_body)
 
     def attachment_ack(self, response: list, **kwargs) -> bool:
+        print("Reply:\n" + json.dumps(response, default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
             print("Error during the attachment request!")
@@ -229,6 +233,7 @@ class WebsocketClient:
                 return True
 
     def attachment_response(self, response: list, **kwargs):
+        print("Reply:\n" + json.dumps(response, default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
         response_body = response[10]
         attachment = response_body[0].get('attachment')
         print(f"We got the attachment!")
@@ -236,6 +241,7 @@ class WebsocketClient:
             "attachments/" + response_body[0].get('attachmentid'), attachment, format=response_body[0].get('meta'))
 
     def query_ack(self, response: list, **kwargs):
+        print("Reply:\n: " + json.dumps(response, default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
         max_length = 12
         response_body = response[10]
         if not self.is_ack_ok(response):
