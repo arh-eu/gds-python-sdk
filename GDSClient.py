@@ -168,8 +168,9 @@ class WebsocketClient:
         if(kwargs.get('callback') is not None):
             kwargs.get('callback')(response)
 
-    def save_attachment(self, path: str, attachment: int, format="unknown", use_timestamp=True):
-        filepath = path
+    def save_attachment(self, name: str, attachment: int, format="unknown", use_timestamp=True):
+        pathlib.Path("attachments").mkdir(parents=True, exist_ok=True)
+        filepath = "attachments/" + name
         if(use_timestamp):
             filepath += "_" + str(int(datetime.now().timestamp()))
 
@@ -189,6 +190,7 @@ class WebsocketClient:
 
     def save_object_to_json(self, name: str, obj: any):
         try:
+            pathlib.Path("exports").mkdir(parents=True, exist_ok=True)
             filepath = f"exports/{name}.json"
             print(f"Saving response as `{filepath}`..")
             with open(filepath, "x") as file:
@@ -225,7 +227,7 @@ class WebsocketClient:
             if(response_body[1][1].get('attachment')):
                 attachment = response_body[1][1].get('attachment')
                 print(f"We got the attachment!")
-                self.save_attachment("attachments/" + response_body[1][1].get(
+                self.save_attachment(response_body[1][1].get(
                     'attachmentid'), attachment, format=response_body[1][1].get('meta'))
                 return False
             else:
@@ -237,11 +239,10 @@ class WebsocketClient:
         response_body = response[10]
         attachment = response_body[0].get('attachment')
         print(f"We got the attachment!")
-        self.save_attachment(
-            "attachments/" + response_body[0].get('attachmentid'), attachment, format=response_body[0].get('meta'))
+        self.save_attachment(response_body[0].get('attachmentid'), attachment, format=response_body[0].get('meta'))
 
     def query_ack(self, response: list, **kwargs):
-        print("Reply:\n: " + json.dumps(response, default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
+        print("Query reply:\n: " + json.dumps(response, default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
         max_length = 12
         response_body = response[10]
         if not self.is_ack_ok(response):
