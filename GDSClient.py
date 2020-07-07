@@ -14,6 +14,10 @@ from datetime import datetime
 from enum import Enum
 
 
+class MessageException(Exception):
+    pass
+
+
 class DataType(Enum):
     CONNECTION = 0
     CONNECTION_ACK = 1
@@ -38,12 +42,11 @@ class WebsocketClient:
         self.timeout = kwargs.get('timeout', 30)
         self.ssl = None
 
-        
         self.mime_extensions = dict({
-            "image/bmp" : "bmp",
-            "image/png" : "png",
-            "image/jpg" : "jpg",
-            "image/jpeg" : "jpg",
+            "image/bmp": "bmp",
+            "image/png": "png",
+            "image/jpg": "jpg",
+            "image/jpeg": "jpg",
         })
 
         if(kwargs.get('tls')):
@@ -68,16 +71,11 @@ class WebsocketClient:
                 print('Login message ACK timed out!')
                 raise e
             else:
-                if (self.is_ack_ok(login_reply)):
-                    print("The login was successful!")
-                    await self.client_code(ws)
-                else:
-                    print("Login unsuccessful!\nDetails:")
-                    print("-" + str(login_reply[10][1]))
-                    print("-" + str(login_reply[10][2]))
+                self.connection_ack(login_reply)
+                return await self.client_code(ws)
 
     async def client_code(self, ws: websockets.WebSocketClientProtocol):
-        raise NotImplementedError()
+        raise NotImplementedError("GDSClient should be inherited from with an overridden 'client_code(..)' method!")
 
     async def send(self, ws: websockets.WebSocketClientProtocol, data):
         await ws.send(MessageUtil.pack(data))
@@ -89,9 +87,33 @@ class WebsocketClient:
         try:
             return await asyncio.wait_for(self.recv(ws), self.timeout)
         except asyncio.TimeoutError as e:
-            raise TimeoutError(f"The given timeout ({self.timeout} seconds) has passed without any response from the server!")
+            raise TimeoutError(
+                f"The given timeout ({self.timeout} seconds) has passed without any response from the server!")
         except Exception as e:
             raise e
+
+    def process_incoming_message(self, response: list, **kwargs):
+        if(len(response) < 11):
+            raise MessageException(
+                f"Invalid message format received!\nExpected an array of length 11, found {len(response)} instead!")
+        else:
+            message_type = DataType(response[9])
+            print(f"Incoming message of type {message_type}")
+            if message_type == DataType.CONNECTION_ACK:
+                return self.connection_ack(response, **kwargs)
+            elif message_type == DataType.EVENT_ACK:
+                return self.event_ack(response, **kwargs)
+            elif message_type == DataType.ATTACHMENT_REQUEST_ACK:
+                return self.attachment_ack(response, **kwargs)
+            elif message_type == DataType.ATTACHMENT_RESPONSE:
+                return self.attachment_response(response, **kwargs)
+            elif message_type == DataType.EVENT_DOCUMENT_ACK:
+                return self.event_ack(response, **kwargs)
+            elif message_type == DataType.QUERY_REQUEST_ACK:
+                return self.query_ack(response, **kwargs)
+            else:
+                raise MessageException(
+                    f"Invalid MessageType found for the client: {message_type}")
 
     """
     Methods for sending data
@@ -135,26 +157,26 @@ class WebsocketClient:
     other utilities
     """
 
-    def is_ack_ok(self, ack_mesage, ok_statuses=[200]):
+    def is_ack_ok(self, ack_mesage: list, ok_statuses=[200]) -> bool:
         return (ack_mesage[10] is not None) and (ack_mesage[10][0] in ok_statuses)
 
     async def send_and_wait_event(self, ws: websockets.WebSocketClientProtocol, eventstr: str):
         message = await self.event(ws, eventstr)
-        self.event_ack(await self.wait_for_reply(ws), original=message)
+        self.process_incoming_message(await self.wait_for_reply(ws), original=message)
 
     async def send_and_wait_attachment(self, ws: websockets.WebSocketClientProtocol, attachstr: str):
         await self.attachment(ws, attachstr)
-        should_wait = self.attachment_ack(await self.wait_for_reply(ws))
+        should_wait = self.process_incoming_message(await self.wait_for_reply(ws))
         if(should_wait):
-            self.attachment_response(await self.wait_for_reply(ws))
+            self.process_incoming_message(await self.wait_for_reply(ws))
 
     async def send_and_wait_query(self, ws: websockets.WebSocketClientProtocol, querystr: str, **kwargs):
         message = await self.query(ws, querystr)
-        more_page, context = self.query_ack(await self.wait_for_reply(ws), original=message)
+        more_page, context = self.process_incoming_message(await self.wait_for_reply(ws), original=message)
         if(kwargs.get('all')):
             while(more_page):
                 await self.next_query(ws, context)
-                more_page, context = self.query_ack(await self.wait_for_reply(ws))
+                more_page, context = self.process_incoming_message(await self.wait_for_reply(ws), original=message)
 
     async def send_and_wait_message(self, ws: websockets.WebSocketClientProtocol, **kwargs):
         if(kwargs.get('header') and kwargs.get('data')):
@@ -203,8 +225,18 @@ class WebsocketClient:
     default methods
     """
 
+    def connection_ack(self, response: list, **kwargs):
+        if (self.is_ack_ok(response)):
+            print("The login was successful!")
+        else:
+            print("Login unsuccessful!\nDetails:")
+            print("-" + str(response[10][1]))
+            print("-" + str(response[10][2]))
+            raise
+
     def event_ack(self, response: list, **kwargs):
-        print("Reply:\n: " + json.dumps(response, default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
+        print("Reply:\n: " + json.dumps(response, default=lambda x: "<" +
+                                        str(sys.getsizeof(x)) + " bytes>", indent=4))
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
             print("Error during the event request!")
@@ -217,7 +249,8 @@ class WebsocketClient:
                 self.save_object_to_json(msgid, response_body)
 
     def attachment_ack(self, response: list, **kwargs) -> bool:
-        print("Reply:\n" + json.dumps(response, default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
+        print("Reply:\n" + json.dumps(response, default=lambda x: "<" +
+                                      str(sys.getsizeof(x)) + " bytes>", indent=4))
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
             print("Error during the attachment request!")
@@ -235,14 +268,17 @@ class WebsocketClient:
                 return True
 
     def attachment_response(self, response: list, **kwargs):
-        print("Reply:\n" + json.dumps(response, default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
+        print("Reply:\n" + json.dumps(response, default=lambda x: "<" +
+                                      str(sys.getsizeof(x)) + " bytes>", indent=4))
         response_body = response[10]
         attachment = response_body[0].get('attachment')
         print(f"We got the attachment!")
-        self.save_attachment(response_body[0].get('attachmentid'), attachment, format=response_body[0].get('meta'))
+        self.save_attachment(response_body[0].get(
+            'attachmentid'), attachment, format=response_body[0].get('meta'))
 
     def query_ack(self, response: list, **kwargs):
-        print("Query reply:\n: " + json.dumps(response, default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
+        print("Query reply:\n: " + json.dumps(response,
+                                              default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
         max_length = 12
         response_body = response[10]
         if not self.is_ack_ok(response):
@@ -258,10 +294,9 @@ class WebsocketClient:
                 self.save_object_to_json(msgid, response_body)
             return response_body[1][2], response_body[1][3]
 
-
     def printErrorInACK(self, message: list):
         print("Error status code returned: " + str(message[0]))
-        if(len(message)>2):
+        if(len(message) > 2):
             print("Error message: " + message[2])
         else:
             print("Server did not specify any error messages!")
