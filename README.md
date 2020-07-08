@@ -94,7 +94,7 @@ To insert into a table, you only have to specify your `INSERT` statement.
 The client will print the reply.
 
 ```sh
-$ python .\simple_client.py -insert "INSERT INTO multi_event (id, front_img1) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments picture1.bmp"
+$ python .\simple_client.py -insert "INSERT INTO multi_event (id, front_img1) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments picture1.bmp
 ```
 ##### UPDATE
 
