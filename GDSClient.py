@@ -75,7 +75,8 @@ class WebsocketClient:
                 return await self.client_code(ws)
 
     async def client_code(self, ws: websockets.WebSocketClientProtocol):
-        raise NotImplementedError("GDSClient should be inherited from with an overridden 'client_code(..)' method!")
+        raise NotImplementedError(
+            "GDSClient should be inherited from with an overridden 'client_code(..)' method!")
 
     async def send(self, ws: websockets.WebSocketClientProtocol, data):
         await ws.send(MessageUtil.pack(data))
@@ -153,6 +154,13 @@ class WebsocketClient:
         await self.send(ws, attachmsg)
         return attachmsg
 
+    async def attachment_response_ack(self, ws: websockets.WebSocketClientProtocol, **kwargs):
+        response_ack_data = MessageUtil.create_attachment_response_ack_data(**kwargs)
+        response_ack_message = MessageUtil.create_message_from_data(
+            DataType.ATTACHMENT_RESPONSE_ACK, response_ack_data)
+        await self.send(ws, response_ack_message)
+        return response_ack_message
+
     """
     other utilities
     """
@@ -168,7 +176,16 @@ class WebsocketClient:
         await self.attachment(ws, attachstr)
         should_wait = self.process_incoming_message(await self.wait_for_reply(ws))
         if(should_wait):
-            self.process_incoming_message(await self.wait_for_reply(ws))
+            response = await self.wait_for_reply(ws)
+            self.process_incoming_message(response)
+            print("Sending the Attachment ACK back to the GDS..")
+            await self.attachment_response_ack(
+                ws,
+                requestids=response[10][0].get('requestids'),
+                ownertable=response[10][0].get('ownertable'),
+                attachmentid=response[10][0].get('attachmentid')
+            )
+
 
     async def send_and_wait_query(self, ws: websockets.WebSocketClientProtocol, querystr: str, **kwargs):
         message = await self.query(ws, querystr)
@@ -276,6 +293,7 @@ class WebsocketClient:
         self.save_attachment(response_body[0].get(
             'attachmentid'), attachment, format=response_body[0].get('meta'))
 
+
     def query_ack(self, response: list, **kwargs):
         print("Query reply:\n: " + json.dumps(response,
                                               default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
@@ -380,6 +398,21 @@ class MessageUtil:
     @staticmethod
     def create_attachment_request_data(attstr: str):
         return attstr
+
+    @staticmethod
+    def create_attachment_response_ack_data(**kwargs):
+        return [
+            kwargs.get('globalstatus', 200),
+            [   
+                kwargs.get('localstatus', 201),
+                dict({
+                    "requestids": kwargs.get('requestids'),
+                    "ownertable" : kwargs.get('ownertable'),
+                    "attachmentid" : kwargs.get('attachmentid')
+                })
+            ],
+            None
+        ]
 
     @staticmethod
     def create_message_from_data(header_type: DataType, data):
