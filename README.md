@@ -94,13 +94,13 @@ To insert into a table, you only have to specify your `INSERT` statement.
 The client will print the reply.
 
 ```sh
-$ python .\simple_client.py -insert "INSERT INTO table(column1, column2) VALUES('a', 42)"
+$ python .\simple_client.py -insert "INSERT INTO multi_event (id, front_img1) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments picture1.bmp"
 ```
 ##### UPDATE
 
 A simple `UPDATE` statement can be specified by the following command:
 ```sh
-$ python .\simple_client.py -update "UPDATE table SET column1 = 'b' WHERE column1='a'"
+$ python .\simple_client.py -update "UPDATE table SET speed = 15 WHERE ID='EVNT2006241023125470'"
 ```
 
 If you specify an update event, you _have to_ use an ID field in the `WHERE` condition, otherwise your request will not be accepted.
