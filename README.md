@@ -166,6 +166,10 @@ $ python .\simple_client.py -attachment "SELECT * FROM \"events-@attachment\" WH
 ```
 Please be careful, as the table name in this examples should be in double quotes, so it should be escaped by backslash, otherwise the parameters will not be parsed right. The reason for this is that the `SQL` standard does not support hyphens in table names, therefore it should be treated differently.
 
+The GDS might not have the specified attachment stored, in this case it can take a while until it can send you back its response. In this case your client will send back an ACK message which means that you have successfully received the attachments.
+
+Your attachments will be saved in the `attachments` folder with the messageID as their file name.
+
 ### Detailed mode 
 
 Messages consist two parts, a [header](https://github.com/arh-eu/gds/wiki/Message-Headers) and a [data](https://github.com/arh-eu/gds/wiki/Message-Data).
