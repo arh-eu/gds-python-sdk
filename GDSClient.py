@@ -47,6 +47,7 @@ class WebsocketClient:
             "image/png": "png",
             "image/jpg": "jpg",
             "image/jpeg": "jpg",
+            "video/mp4" : "mp4"
         })
 
         if(kwargs.get('tls')):
@@ -231,7 +232,7 @@ class WebsocketClient:
         try:
             pathlib.Path("exports").mkdir(parents=True, exist_ok=True)
             filepath = f"exports/{name}.json"
-            print(f"Saving response as `{filepath}`..")
+            print(f"Saving full response as `{filepath}`..")
             with open(filepath, "x") as file:
                 json.dump(obj, file, indent=4)
         except Exception as e:
@@ -263,7 +264,7 @@ class WebsocketClient:
                 f"Event returned {(len(response_body[1]))} results total.")
             if(kwargs.get('original')):
                 msgid = kwargs.get('original')[1]
-                self.save_object_to_json(msgid, response_body)
+                self.save_object_to_json(msgid, response)
 
     def attachment_ack(self, response: list, **kwargs) -> bool:
         print("Reply:\n" + json.dumps(response, default=lambda x: "<" +
@@ -309,7 +310,7 @@ class WebsocketClient:
 
             if(kwargs.get('original')):
                 msgid = kwargs.get('original')[1]
-                self.save_object_to_json(msgid, response_body)
+                self.save_object_to_json(msgid, response)
             return response_body[1][2], response_body[1][3]
 
     def printErrorInACK(self, message: list):
