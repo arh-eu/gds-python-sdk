@@ -40,25 +40,19 @@ class WebsocketClient:
         self.username = kwargs.get('username', "user")
         self.password = kwargs.get('password')
         self.timeout = kwargs.get('timeout', 30)
-        self.ssl = None
 
         self.mime_extensions = dict({
             "image/bmp": "bmp",
             "image/png": "png",
             "image/jpg": "jpg",
             "image/jpeg": "jpg",
-            "video/mp4" : "mp4"
+            "video/mp4": "mp4"
         })
-
-        if(kwargs.get('tls')):
-            self.ssl = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            cert = pathlib.Path(__file__).with_name(kwargs.get('tls'))
-            self.ssl.load_verify_locations(cert)
 
         self.args = kwargs
 
     async def run(self):
-        async with websockets.connect(self.url, ssl=self.ssl) as ws:
+        async with websockets.connect(self.url, ssl=None) as ws:
             logindata = MessageUtil.create_message_from_header_and_data(
                 MessageUtil.create_header(
                     DataType.CONNECTION, username=self.username),
@@ -156,7 +150,8 @@ class WebsocketClient:
         return attachmsg
 
     async def attachment_response_ack(self, ws: websockets.WebSocketClientProtocol, **kwargs):
-        response_ack_data = MessageUtil.create_attachment_response_ack_data(**kwargs)
+        response_ack_data = MessageUtil.create_attachment_response_ack_data(
+            **kwargs)
         response_ack_message = MessageUtil.create_message_from_data(
             DataType.ATTACHMENT_RESPONSE_ACK, response_ack_data)
         await self.send(ws, response_ack_message)
@@ -186,7 +181,6 @@ class WebsocketClient:
                 ownertable=response[10][0].get('ownertable'),
                 attachmentid=response[10][0].get('attachmentid')
             )
-
 
     async def send_and_wait_query(self, ws: websockets.WebSocketClientProtocol, querystr: str, **kwargs):
         message = await self.query(ws, querystr)
@@ -293,7 +287,6 @@ class WebsocketClient:
         print(f"We got the attachment!")
         self.save_attachment(response_body[0].get(
             'attachmentid'), attachment, format=response_body[0].get('meta'))
-
 
     def query_ack(self, response: list, **kwargs):
         print("Query reply:\n: " + json.dumps(response,
@@ -404,12 +397,12 @@ class MessageUtil:
     def create_attachment_response_ack_data(**kwargs):
         return [
             kwargs.get('globalstatus', 200),
-            [   
+            [
                 kwargs.get('localstatus', 201),
                 dict({
                     "requestids": kwargs.get('requestids'),
-                    "ownertable" : kwargs.get('ownertable'),
-                    "attachmentid" : kwargs.get('attachmentid')
+                    "ownertable": kwargs.get('ownertable'),
+                    "attachmentid": kwargs.get('attachmentid')
                 })
             ],
             None

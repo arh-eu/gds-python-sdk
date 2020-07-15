@@ -117,4 +117,7 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         print("Some error happened during running, client is now closing! Details:")
-        print(e)
+        print(str(type(e)) + " - " + str(e))
+        if(str(e) == "unpack(b) received extra data."):
+            # https://github.com/saltstack/salt/issues/22734#issuecomment-93872398
+            print("The reply could not be parsed because of an internal error. Please try again!")
