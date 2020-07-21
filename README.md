@@ -341,7 +341,7 @@ customquery = GDSClient.MessageUtil.create_select_query_data(querystr, consisten
 ```
 
 ##### SELECT attachment
-To select an attachment, you should invoke the `create_attachment_query_data(..)` method with the select string you have:
+To select an attachment, you should invoke the `create_attachment_request_data(..)` method with the select string you have:
 
 ```python
 attachmentstr = "SELECT * FROM \"multi_event-@attachment\" WHERE id='ATID2006241023125470' and ownerid='EVNT2006241023125470' FOR UPDATE WAIT 86400"
