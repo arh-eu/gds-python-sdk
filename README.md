@@ -63,7 +63,7 @@ By default, the username `"user"` and the url `"ws://127.0.0.1:8888/gate"` will 
 
 You probably want to specify the url and the username as well, so start the script like this:
 ```sh
-$ python .\simple_client.py -url "ws://192.168.255.254:8080/gate/" -username "john_doe" -query "SELECT * FROM table"
+$ python .\simple_client.py -url "ws://192.168.255.254:8888/gate/" -username "john_doe" -query "SELECT * FROM table"
 ```
 
 The `-url` flag, and the corresponding `URL` value is optional, so is the `USERNAME`, specified by the `-username` flag.
@@ -72,7 +72,7 @@ The order of the parameters is not fixed, but you can only use one type of messa
 If you need to specify the password used at login to the GDS as well, the `-password` flag can be used for this.
 
 ```sh
-$ python .\simple_client.py -url "ws://192.168.255.254:8080/gate/" -username "john_doe" -password "$ecretp4$$w0rD" -query "SELECT * FROM table"
+$ python .\simple_client.py -url "ws://192.168.255.254:8888/gate/" -username "john_doe" -password "$ecretp4$$w0rD" -query "SELECT * FROM table"
 ```
 
 Probably you do not want to wait for ever for your replies. You can have a timeout for the response ACK messages, which can be specified with the `-timeout` flag. By default, the value is `30` seconds.
@@ -94,13 +94,13 @@ To insert into a table, you only have to specify your `INSERT` statement.
 The client will print the reply.
 
 ```sh
-$ python .\simple_client.py -insert "INSERT INTO multi_event (id, front_img1) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments picture1.bmp
+$ python .\simple_client.py -insert "INSERT INTO multi_event (id, images) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments picture1.bmp
 ```
 ##### UPDATE
 
 A simple `UPDATE` statement can be specified by the following command:
 ```sh
-$ python .\simple_client.py -update "UPDATE table SET speed = 15 WHERE ID='EVNT2006241023125470'"
+$ python .\simple_client.py -update "UPDATE multi_event SET speed = 15 WHERE id='EVNT2006241023125470'"
 ```
 
 If you specify an update event, you _have to_ use an ID field in the `WHERE` condition, otherwise your request will not be accepted.
@@ -111,7 +111,7 @@ Just as at the `INSERT`, the ACK message will be displayed here as well.
 
 A simple `MERGE` statement can be specified by the following command:
 ```sh
-$ python .\simple_client.py -merge "MERGE INTO events USING (SELECT 'EVNT202001010000000000' as id, 'ABC123' as numberplate, 100 as speed) I ON (events.id = I.id) WHEN MATCHED THEN UPDATE SET events.speed = I.speed WHEN NOT MATCHED THEN INSERT (id, numberplate) VALUES (I.id, I.numberplate)"
+$ python .\simple_client.py -merge "MERGE INTO multi_event USING (SELECT 'EVNT2006241023125470' as id, 'ABC123' as plate, 100 as speed) I ON (multi_event.id = I.id) WHEN MATCHED THEN UPDATE SET multi_event.speed = I.speed WHEN NOT MATCHED THEN INSERT (id, plate) VALUES (I.id, I.plate)"
 ```
 The reply will be printed to the console, just as above.
 
@@ -140,7 +140,7 @@ To attach files to your events (named "binary contents") you should use the `-at
 The attachments are the names of your files found in the `attachments` folder. These names are automatically converted into `hex` values, and the contents of these files will be sent with your message (see the [wiki](https://github.com/arh-eu/gds/wiki/Message-Data#Event---Data-Type-2)).
 ```sh
 #inserting one attachment to the table
-$ python .\simple_client.py -event "INSERT INTO multi_event (id, front_img1) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments "picture1.bmp"
+$ python .\simple_client.py -event "INSERT INTO multi_event (id, images) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments "picture1.bmp"
 ```
 
 If the file you specify is not present, the client will print an error message without sending the message.
@@ -148,7 +148,7 @@ If the file you specify is not present, the client will print an error message w
 ##### SELECT query
 A simple `SELECT` query statement can be specified by the following command:
 ```sh
-$ python .\simple_client.py -query "SELECT * FROM table"
+$ python .\simple_client.py -query "SELECT * FROM multi_event"
 ```
 
 The rows returned by the GDS will be printed on your output, one record per line.
@@ -162,7 +162,7 @@ If you do not want to bother by manually sending these requests, you can use the
 
 A simple `SELECT` attachment query statement can be specified by the following command:
 ```sh
-$ python .\simple_client.py -attachment "SELECT * FROM \"events-@attachment\" WHERE id='ATID202001010000000000' and ownerid='EVNT202001010000000000' FOR UPDATE WAIT 86400"
+$ python .\simple_client.py -attachment "SELECT * FROM \"multi_event-@attachment\" WHERE id='ATID2006241023125470' and ownerid='EVNT2006241023125470' FOR UPDATE WAIT 86400"
 ```
 Please be careful, as the table name in this examples should be in double quotes, so it should be escaped by backslash, otherwise the parameters will not be parsed right. The reason for this is that the `SQL` standard does not support hyphens in table names, therefore it should be treated differently.
 
@@ -292,8 +292,8 @@ An example with binary contents and priority levels can be the following:
 
 ```python
 operations = ";".join([
-    "INSERT INTO events (id, numberplate, speed, images) VALUES('EVNT202001010000000000', 'ABC123', 90, array('ATID202001010000000000'))",
-    "INSERT INTO \"events-@attachment\" (id, meta, data) VALUES('ATID202001010000000000', 'some_meta', 0x62696e6172795f6964315f6578616d706c65)"
+    "INSERT INTO multi_event (id, plate, speed, images) VALUES('EVNT2006241023125470', 'ABC123', 90, array('ATID2006241023125470'))",
+    "INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'some_meta', 0x62696e6172795f69645f6578616d706c65)"
 ])
 
 contents = {
@@ -315,19 +315,19 @@ If you print the the `event_data`, you should see the following:
 print(event_data)
 
 # output
-['INSERT INTO events (id, numberplate, speed, images) VALUES(\'EVNT202001010000000000\', \'ABC123\', 90, array(\'ATID202001010000000000\'));INSERT INTO "events-@attachment" (id, meta, data) VALUES(\'ATID202001010000000000\', \'some_meta\', 0x62696e6172795f6964315f6578616d706c65)', {'62696e6172795f69645f6578616d706c65': bytearray(b'\x7f\x7f\x00\x00')}, [[{1: True}]]]
+['INSERT INTO multi_event (id, plate, speed, images) VALUES(\'EVNT2006241023125470\', \'ABC123\', 90, array(\'ATID2006241023125470\'));INSERT INTO "multi_event-@attachment" (id, meta, data) VALUES(\'ATID2006241023125470\', \'some_meta\', 0x62696e6172795f69645f6578616d706c65)', {'62696e6172795f69645f6578616d706c65': bytearray(b'\x7f\x7f\x00\x00')}, [[{1: True}]]]
 ```
 
 ##### SELECT query
 
 For a select query, you should invoke the `create_select_query_data(..)` method with the select string you have:
 ```python
-querystr = "SELECT * FROM table"
+querystr = "SELECT * FROM multi_event"
 select_data = GDSClient.MessageUtil.create_select_query_data(querystr)
 print(select_data)
 
 #output will be:
-["SELECT * FROM table", "PAGES", 60000]
+['SELECT * FROM multi_event', 'PAGES', 60000]
 ```
 
 There are two optional, named parameters here, one stands for the consistency type (by default set to `"PAGES"`), and one for the time-out.
@@ -344,8 +344,8 @@ customquery = GDSClient.MessageUtil.create_select_query_data(querystr, consisten
 To select an attachment, you should invoke the `create_attachment_query_data(..)` method with the select string you have:
 
 ```python
-attachmentstr = "SELECT * FROM \"events-@attachment\" WHERE id='ATID202001010000000000' and ownerid='EVNT202001010000000000' FOR UPDATE WAIT 86400")
-attachment_data = GDSClient.MessageUtil.create_attachment_query_data(attachmentstr)
+attachmentstr = "SELECT * FROM \"multi_event-@attachment\" WHERE id='ATID2006241023125470' and ownerid='EVNT2006241023125470' FOR UPDATE WAIT 86400"
+attachment_data = GDSClient.MessageUtil.create_attachment_request_data(attachmentstr)
 ```
 This method has no additional parameters, so additional details cannot be specified here.
 
@@ -365,7 +365,7 @@ Since this is an asynchronous call, you should not forget to `await` this respon
 
   def client_code(self, ws):
     header = GDSClient.MessageUtil.create_header(GDSClient.DataType.QUERY_REQUEST)
-    querydata = GDSClient.MessageUtil.create_select_query_data("SELECT * FROM table")
+    querydata = GDSClient.MessageUtil.create_select_query_data("SELECT * FROM multi_event")
 
     await self.send_and_wait_message(ws, header=header, data=querydata, callback=self.query_ack)
 ```
@@ -376,7 +376,7 @@ If you do not want to wait for the reply you should invoke the `send_message(..)
 
   def client_code(self, ws):
     header = GDSClient.MessageUtil.create_header(GDSClient.DataType.EVENT)
-    insertdata = GDSClient.MessageUtil.create_select_query_data("INSERT INTO table(row1, row2) VALUES ('a', 'b')")
+    insertdata = GDSClient.MessageUtil.create_event_data("INSERT INTO multi_event (id, speed) VALUES('EVNT2006241023125470', 80)")
 
     await self.send_message(ws, header, insertdata)
 ```
