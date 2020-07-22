@@ -198,13 +198,13 @@ The `wait_for_reply(..)` method will call the `recv(..)` method, but if there is
 The client has some predefined functions which you can override to use custom logic with the (ACK) responses the GDS gives you. These methods are the following:
 
 ```python
-  def event_ack(self, response: list)
+  def event_ack(self, response: list, **kwargs)
 
-  def attachment_ack(self, response: list) -> bool
+  def attachment_ack(self, response: list, **kwargs) -> bool
 
-  def attachment_response(self, response: list)
+  def attachment_response(self, response: list, **kwargs)
   
-  def query_ack(self, response: list)
+  def query_ack(self, response: list, **kwargs) -> Tuple[bool, list]
 ```
 
 All of those will get the returned response as their parameter, which you can handle as you want.
@@ -357,9 +357,9 @@ You probably want to send the message and wait for the reply (ACK) as well, so y
 
 You can use this method by specifying passing the `ws` descriptor, and by giving the `header` and `data` fields the values you have created.
 
-There is also a `callback` parameter, which will get called with the reply of the GDS. You can keep this `None`, in this scenario the response will be ignored.
+Since this is an asynchronous call, you should not forget to `await` it!
 
-Since this is an asynchronous call, you should not forget to `await` this response!
+The client will wait for a response and call the proper handler for it. If you receive an `Event ACK`, then the `event_ack(self, response, **kwargs)` method will be called.
 
 ```python
 
@@ -370,7 +370,7 @@ Since this is an asynchronous call, you should not forget to `await` this respon
     await self.send_and_wait_message(ws, header=header, data=querydata, callback=self.query_ack)
 ```
 
-If you do not want to wait for the reply you should invoke the `send_message(..)` instead, without any callbacks given. In this case you do not need to specify the parameters by name, the order of them is `(ws, header, data)`. The `await` keyword can not be omitted though, keep in mind.
+If you do not want to wait for or do not need the reply you should invoke the `send_message(..)` instead. In this case you do not need to specify the parameters by name, the order of them is `(ws, header, data)`. The `await` keyword can not be omitted in this case either, keep in mind.
 
 ```python
 

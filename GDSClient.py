@@ -33,6 +33,23 @@ class DataType(Enum):
     QUERY_REQUEST_ACK = 11
     NEXT_QUERY_PAGE_REQUEST = 12
 
+class StatusCode(Enum):
+    OK = 200
+    CREATED = 201
+    ACCEPTED = 202
+    NOT_ACCEPTABLE_304 = 304
+    BAD_REQUEST = 400
+    UNAUTHORIZED = 401
+    FORBIDDEN = 403
+    NOT_FOUND = 404
+    NOT_ACCEPTABLE_406 = 406
+    TIMEOUT = 408
+    CONFLICT = 409
+    PRECONDITION_FAILED = 412
+    TOO_MANY_REQUESTS = 429
+    INTERNAL_SERVER_ERROR = 500
+    BANDWIDTH_LIMIT_EXCEEDED = 509
+    NOT_EXTENDED = 510
 
 class WebsocketClient:
     def __init__(self, **kwargs):
@@ -40,6 +57,7 @@ class WebsocketClient:
         self.username = kwargs.get('username', "user")
         self.password = kwargs.get('password')
         self.timeout = kwargs.get('timeout', 30)
+        self.ssl = None
 
         self.mime_extensions = dict({
             "image/bmp": "bmp",
@@ -49,10 +67,16 @@ class WebsocketClient:
             "video/mp4": "mp4"
         })
 
+        if(self.url.startswith("wss") and kwargs.get('tls')):
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ssl_context.check_hostname = False
+            cert = pathlib.Path(__file__).with_name(kwargs.get('tls'))
+            ssl_context.load_verify_locations(cert)
+            self.ssl = ssl_context
         self.args = kwargs
 
     async def run(self):
-        async with websockets.connect(self.url, ssl=None) as ws:
+        async with websockets.connect(self.url, ssl=self.ssl) as ws:
             logindata = MessageUtil.create_message_from_header_and_data(
                 MessageUtil.create_header(
                     DataType.CONNECTION, username=self.username),
@@ -94,7 +118,7 @@ class WebsocketClient:
                 f"Invalid message format received!\nExpected an array of length 11, found {len(response)} instead!")
         else:
             message_type = DataType(response[9])
-            print(f"Incoming message of type {message_type}")
+            print(f"Incoming message of type {message_type.name}")
             if message_type == DataType.CONNECTION_ACK:
                 return self.connection_ack(response, **kwargs)
             elif message_type == DataType.EVENT_ACK:
@@ -199,8 +223,7 @@ class WebsocketClient:
             raise ValueError(
                 "Neither the 'header' and 'body' nor the 'message' value were specified!")
         response = await self.wait_for_reply(ws)
-        if(kwargs.get('callback') is not None):
-            kwargs.get('callback')(response)
+        self.process_incoming_message(response, **kwargs)
 
     def save_attachment(self, name: str, attachment: int, format="unknown", use_timestamp=True):
         pathlib.Path("attachments").mkdir(parents=True, exist_ok=True)
@@ -307,7 +330,7 @@ class WebsocketClient:
             return response_body[1][2], response_body[1][3]
 
     def printErrorInACK(self, message: list):
-        print("Error status code returned: " + str(message[0]))
+        print(f"Error status code returned: {message[0]} ({StatusCode(message[0]).name})")
         if(len(message) > 2):
             print("Error message: " + message[2])
         else:
