@@ -367,7 +367,7 @@ The client will wait for a response and call the proper handler for it. If you r
     header = GDSClient.MessageUtil.create_header(GDSClient.DataType.QUERY_REQUEST)
     querydata = GDSClient.MessageUtil.create_select_query_data("SELECT * FROM multi_event")
 
-    await self.send_and_wait_message(ws, header=header, data=querydata, callback=self.query_ack)
+    await self.send_and_wait_message(ws, header=header, data=querydata)
 ```
 
 If you do not want to wait for or do not need the reply you should invoke the `send_message(..)` instead. In this case you do not need to specify the parameters by name, the order of them is `(ws, header, data)`. The `await` keyword can not be omitted in this case either, keep in mind.
