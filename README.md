@@ -1,27 +1,3 @@
-- [Installation](#installation)
-- [Communication](#communication)
-- [Login to the GDS](#login-to-the-gds)
-  * [Console Client](#console-client)
-    + [Easy mode](#easy-mode)
-      - [URL, username, password, timeout](#url--username--password--timeout)
-      - [INSERT](#insert)
-      - [UPDATE](#update)
-      - [MERGE](#merge)
-      - [DELETE](#delete)
-      - [Sending Attachments with Events](#sending-attachments-with-events)
-      - [SELECT query](#select-query)
-      - [SELECT attachment](#select-attachment)
-  * [Detailed mode](#detailed-mode)
-    + [Class structure](#class-structure)
-      - [Response handlers](#response-handlers)
-    + [Message Headers](#message-headers)
-    + [Message Data](#message-data)
-      - [INSERT, UPDATE, MERGE, DELETE](#insert--update--merge--delete)
-      - [SELECT query](#select-query-1)
-      - [SELECT attachment](#select-attachment-1)
-    + [Sending custom messages](#sending-custom-messages)
-
-
 ## Installation
 
 To install and use the `Python` library you have to install two components our classes depend on, the MessagePack wrappers for the messages and the WebSocket protocol for the communication.
@@ -29,6 +5,8 @@ To install and use the `Python` library you have to install two components our c
 The first one, the `msgpack` module can be installed by typing `$ pip install msgpack` into your terminal or command line (the github repo can be found [here](https://github.com/msgpack/msgpack-python)). The version used for this module was `0.6.2`.
 
 For the `websockets` library, you need to enter the `$ pip install websockets` command (its official site is [here](https://websockets.readthedocs.io/en/stable/intro.html)). The client uses version `8.1` in its code.
+
+For TLS connection you will also need the `pyOpenSSL` libraries, which can be installed by `pip install pyopenssl`. We used the version `19.1.0` at the time of this documentation.
 
 Please keep in mind that you need to have `Python 3.6.1` or newer to install the dependencies (you can install it from [here](https://www.python.org/downloads/)).
 
@@ -57,9 +35,13 @@ If you go with the easy mode, you do not have to know or worry about how to writ
 
 The easy mode will send the message you specify, and will await for the corresponding ACK messages and print them to your console (see more about them [here](https://github.com/arh-eu/gds/wiki/Message-Data)).
 
-##### URL, username, password, timeout
+##### Connection information
+
+###### URL
 
 By default, the username `"user"` and the url `"ws://127.0.0.1:8888/gate"` will be used (this assumes that your local computer has a GDS instance or the server simulator running on the port `8888`).
+
+###### username
 
 You probably want to specify the url and the username as well, so start the script like this:
 ```sh
@@ -69,11 +51,14 @@ $ python .\simple_client.py -url "ws://192.168.255.254:8888/gate/" -username "jo
 The `-url` flag, and the corresponding `URL` value is optional, so is the `USERNAME`, specified by the `-username` flag.
 The order of the parameters is not fixed, but you can only use one type of message to be sent from the console.
 
+###### password
+
 If you need to specify the password used at login to the GDS as well, the `-password` flag can be used for this.
 
 ```sh
 $ python .\simple_client.py -url "ws://192.168.255.254:8888/gate/" -username "john_doe" -password "$ecretp4$$w0rD" -query "SELECT * FROM table"
 ```
+###### timeout
 
 Probably you do not want to wait for ever for your replies. You can have a timeout for the response ACK messages, which can be specified with the `-timeout` flag. By default, the value is `30` seconds.
 
@@ -86,6 +71,16 @@ Waiting <login> reply..
 The given timeout (10 seconds) has passed without any response from the server!
 ```
 
+###### TLS
+
+For secured connections you also need to specify your PKCS12 formatted certificate file (`*.p12` format), which is set by the `-cert` flag. Since the file is password protected, this can be set with the `-secret` flag.
+
+The GDS usually runs on a different port (and endpoint) for secure connection. You also have to use `wss` as the url scheme.
+
+
+```sh
+$ python .\simple_client.py -url "wss://127.0.0.1:8443/gates" -cert "my_cert_file.p12" -secret "My_$3CreT_TŁS_P4s$W0RĐ" -query "SELECT * FROM table"
+```
 
 If you need help about the usage of the program, it can be printed by the `--help` flag.
 
@@ -184,6 +179,20 @@ First you should understand the basics of the `WebsocketClient` class. Since the
 The functions that are processing the replies do not have to be declared `async`, as it is not an asynchronous activity.
 
 The `WebsocketClient` connects to the GDS on the given URL (that can be specified by command line arguments and is passed to the `__init()__` with the `**kwargs` pattern), and if the login was successful it will call the `client_code(..)` method of the class with the active websocket connection descriptor as the parameter. Should the login fail, the client exits with the error message displayed.
+
+The `kwargs` contain mapped parameters, that are used to set up the (WebSocket) connection. Using the ConsoleClient initializes them from the command line arguments by the `argparse` library. However, for custom clients you can specify them as well to override the default values. These parameters are:
+
+  - `url` - the GDS url you wish to connect to. Default value is set to `ws://127.0.0.1:8888/gate`.
+  - `username` - the username used for messages and login. Default is `user`.
+  - `password` - the password used for password authentication. Set to `None` if not specified.
+  - `timeout` - the timeout used for awaiting reply messages from the GDS in seconds. `30` is the default.
+
+If the `url` scheme is `wss` you can use TLS for encrypted connection. For this you need to specify two parameters as well.
+
+  - `cert` - the path to the file in PKCS12 format for the certificates (the `*.p12` file).
+  - `secret` - The password used to generate and encrypt the `cert` file.
+
+Any additional parameter you specify can be accessed by the `self.args` variable in the whole class.
 
 Business logic of the client should be implemented in the `client_code(..)` method. When the method returns, the client will close the active websocket connection and exit. Not overriding the `client_code(..)` will result in a `NotImplementedError()`.
 

@@ -78,8 +78,10 @@ def main():
                         help="The timeout of your queries (in seconds) before the waiting for the response will be interrupted.")
     parser.add_argument("-url", default="ws://127.0.0.1:8888/gate",
                         help="The URL of the GDS instance you would like to connect to.")
-    parser.add_argument("-tls", default=None,
-                        help="The path of the certificate to use if you want to use secure connection.")
+    parser.add_argument("-cert", default=None,
+                        help="The name of your PKCS12 certificate file ('*.p12') if you want to use secure connection.")
+    parser.add_argument("-secret", default=None,
+                        help="The password for your certificate ('*.p12') file.")
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-hex", help="Converts the given string to HEX format.")

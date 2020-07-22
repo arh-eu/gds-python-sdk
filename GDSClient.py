@@ -12,6 +12,9 @@ import websockets
 
 from datetime import datetime
 from enum import Enum
+from OpenSSL import crypto
+import tempfile
+import os
 
 
 class MessageException(Exception):
@@ -67,12 +70,8 @@ class WebsocketClient:
             "video/mp4": "mp4"
         })
 
-        if(self.url.startswith("wss") and kwargs.get('tls')):
-            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            ssl_context.check_hostname = False
-            cert = pathlib.Path(__file__).with_name(kwargs.get('tls'))
-            ssl_context.load_verify_locations(cert)
-            self.ssl = ssl_context
+        if(self.url.startswith("wss") and kwargs.get('cert') and kwargs.get('secret')):
+            self.initTLS(kwargs.get('cert'), kwargs.get('secret'))
         self.args = kwargs
 
     async def run(self):
@@ -134,6 +133,31 @@ class WebsocketClient:
             else:
                 raise MessageException(
                     f"Invalid MessageType found for the client: {message_type}")
+
+    def initTLS(self, cert_path: str, password : str):
+        with open(cert_path, 'rb') as provided_cert:
+            cert_binary = provided_cert.read()
+        p12 = crypto.load_pkcs12(cert_binary, password.encode('utf8'))
+        privatekey = crypto.dump_privatekey(crypto.FILETYPE_PEM, p12.get_privatekey())
+        cert = crypto.dump_certificate(crypto.FILETYPE_PEM, p12.get_certificate())
+
+        cert_file = tempfile.NamedTemporaryFile(delete=False)
+        key_file = tempfile.NamedTemporaryFile(delete=False)
+            
+        cert_file.write(cert)
+        key_file.write(privatekey)
+        cert_file.close()
+        key_file.close()
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        ssl_context.load_cert_chain(cert_file.name, key_file.name, password)
+
+        os.unlink(cert_file.name)
+        os.unlink(key_file.name)
+
+        self.ssl = ssl_context
+
 
     """
     Methods for sending data
