@@ -73,7 +73,7 @@ By default, the username `"user"` and the url `"ws://127.0.0.1:8888/gate"` will 
 
 You probably want to specify the url and the username as well, so start the script like this:
 ```sh
-$ python .\simple_client.py -url "ws://192.168.255.254:8888/gate/" -username "john_doe" -query "SELECT * FROM table"
+$ python .\simple_client.py -url "ws://192.168.255.254:8888/gate/" -username "john_doe" -query "SELECT * FROM multi_event"
 ```
 
 The `-url` flag, and the corresponding `URL` value is optional, so is the `USERNAME`, specified by the `-username` flag.
@@ -84,7 +84,7 @@ The order of the parameters is not fixed, but you can only use one type of messa
 If you need to specify the password used at login to the GDS as well, the `-password` flag can be used for this.
 
 ```sh
-$ python .\simple_client.py -url "ws://192.168.255.254:8888/gate/" -username "john_doe" -password "$ecretp4$$w0rD" -query "SELECT * FROM table"
+$ python .\simple_client.py -url "ws://192.168.255.254:8888/gate/" -username "john_doe" -password "$ecretp4$$w0rD" -query "SELECT * FROM multi_event"
 ```
 ###### timeout
 
@@ -93,7 +93,7 @@ Probably you do not want to wait for ever for your replies. You can have a timeo
 A timeout where the server does not respond to your login request can be the following:
 
 ```sh
-$ python .\simple_client.py -query "SELECT * FROM table" -timeout 10
+$ python .\simple_client.py -query "SELECT * FROM multi_event" -timeout 10
 Sending <login> message..
 Waiting <login> reply..
 The given timeout (10 seconds) has passed without any response from the server!
@@ -107,7 +107,7 @@ The GDS usually runs on a different port (and endpoint) for secure connection. Y
 
 
 ```sh
-$ python .\simple_client.py -url "wss://127.0.0.1:8443/gates" -cert "my_cert_file.p12" -secret "My_$3CreT_TŁS_P4s$W0RĐ" -query "SELECT * FROM table"
+$ python .\simple_client.py -url "wss://127.0.0.1:8443/gates" -cert "my_cert_file.p12" -secret "My_$3CreT_TŁS_P4s$W0RĐ" -query "SELECT * FROM multi_event"
 ```
 
 If you need help about the usage of the program, it can be printed by the `--help` flag.
