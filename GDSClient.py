@@ -403,7 +403,9 @@ class MessageUtil:
     def create_login_data(**kwargs):
         return [
             kwargs.get('serve_on_same', False),
-            kwargs.get('version', 1),
+            #current GDS version is 5.1, therefore
+            #the major version is set to 5 while the minor to 1.
+            kwargs.get('version', (5 << 16 | 1)),
             kwargs.get('fragment_support', False),
             kwargs.get('fragment_unit', None),
             kwargs.get('reserved', [None])
