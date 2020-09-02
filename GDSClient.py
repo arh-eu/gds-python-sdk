@@ -100,7 +100,12 @@ class WebsocketClient:
         await ws.send(MessageUtil.pack(data))
 
     async def recv(self, ws: websockets.WebSocketClientProtocol):
-        return MessageUtil.unpack(await ws.recv())
+        try:
+            data = await ws.recv()
+            return MessageUtil.unpack(data)
+        except msgpack.exceptions.ExtraData as e:
+            #print(f"Could not unpack data: {''.join('{:02x}'.format(x) for x in data)}")
+            raise e
 
     async def wait_for_reply(self, ws: websockets.WebSocketClientProtocol):
         try:
@@ -135,28 +140,31 @@ class WebsocketClient:
                     f"Invalid MessageType found for the client: {message_type}")
 
     def initTLS(self, cert_path: str, password : str):
-        with open(cert_path, 'rb') as provided_cert:
-            cert_binary = provided_cert.read()
-        p12 = crypto.load_pkcs12(cert_binary, password.encode('utf8'))
-        privatekey = crypto.dump_privatekey(crypto.FILETYPE_PEM, p12.get_privatekey())
-        cert = crypto.dump_certificate(crypto.FILETYPE_PEM, p12.get_certificate())
+        try:
+            with open(cert_path, 'rb') as provided_cert:
+                cert_binary = provided_cert.read()
+            p12 = crypto.load_pkcs12(cert_binary, password.encode('utf8'))
+            privatekey = crypto.dump_privatekey(crypto.FILETYPE_PEM, p12.get_privatekey())
+            cert = crypto.dump_certificate(crypto.FILETYPE_PEM, p12.get_certificate())
 
-        cert_file = tempfile.NamedTemporaryFile(delete=False)
-        key_file = tempfile.NamedTemporaryFile(delete=False)
-            
-        cert_file.write(cert)
-        key_file.write(privatekey)
-        cert_file.close()
-        key_file.close()
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        ssl_context.load_cert_chain(cert_file.name, key_file.name, password)
+            cert_file = tempfile.NamedTemporaryFile(delete=False)
+            key_file = tempfile.NamedTemporaryFile(delete=False)
+                
+            cert_file.write(cert)
+            key_file.write(privatekey)
+            cert_file.close()
+            key_file.close()
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            ssl_context.load_cert_chain(cert_file.name, key_file.name, password)
 
-        os.unlink(cert_file.name)
-        os.unlink(key_file.name)
+            os.unlink(cert_file.name)
+            os.unlink(key_file.name)
 
-        self.ssl = ssl_context
+            self.ssl = ssl_context
+        except Exception as e:
+            raise Exception("Could not initialize TLS connection!", e)
 
 
     """
@@ -170,14 +178,14 @@ class WebsocketClient:
     async def query(self, ws: websockets.WebSocketClientProtocol, querystr: str, **queryargs):
         querydata = MessageUtil.create_select_query_data(querystr, **queryargs)
         querymsg = MessageUtil.create_message_from_data(
-            DataType.QUERY_REQUEST, querydata)
+            DataType.QUERY_REQUEST, querydata, username=self.args.get('username'))
         await self.send(ws, querymsg)
         return querymsg
 
     async def next_query(self, ws: websockets.WebSocketClientProtocol, context: list):
         nextquery = MessageUtil.create_next_query_data(context)
         msg = MessageUtil.create_message_from_data(
-            DataType.NEXT_QUERY_PAGE_REQUEST, nextquery)
+            DataType.NEXT_QUERY_PAGE_REQUEST, nextquery, username=self.args.get('username'))
         await self.send(ws, msg)
         return msg
 
@@ -185,7 +193,7 @@ class WebsocketClient:
         eventdata = MessageUtil.create_event_data(
             eventstr, **eventargs, files=self.args.get('attachments'))
         eventmsg = MessageUtil.create_message_from_data(
-            DataType.EVENT, eventdata)
+            DataType.EVENT, eventdata, username=self.args.get('username'))
         await self.send(ws, eventmsg)
         return eventmsg
 
@@ -193,7 +201,7 @@ class WebsocketClient:
         attachdata = MessageUtil.create_attachment_request_data(
             attachstr, **attachargs)
         attachmsg = MessageUtil.create_message_from_data(
-            DataType.ATTACHMENT_REQUEST, attachdata)
+            DataType.ATTACHMENT_REQUEST, attachdata, username=self.args.get('username'))
         await self.send(ws, attachmsg)
         return attachmsg
 
@@ -201,7 +209,7 @@ class WebsocketClient:
         response_ack_data = MessageUtil.create_attachment_response_ack_data(
             **kwargs)
         response_ack_message = MessageUtil.create_message_from_data(
-            DataType.ATTACHMENT_RESPONSE_ACK, response_ack_data)
+            DataType.ATTACHMENT_RESPONSE_ACK, response_ack_data, username=self.args.get('username'))
         await self.send(ws, response_ack_message)
         return response_ack_message
 
@@ -232,11 +240,11 @@ class WebsocketClient:
 
     async def send_and_wait_query(self, ws: websockets.WebSocketClientProtocol, querystr: str, **kwargs):
         message = await self.query(ws, querystr)
-        more_page, context = self.process_incoming_message(await self.wait_for_reply(ws), original=message)
+        more_page, context = self.process_incoming_message(await self.wait_for_reply(ws), original=message, **kwargs)
         if(kwargs.get('all')):
             while(more_page):
                 await self.next_query(ws, context)
-                more_page, context = self.process_incoming_message(await self.wait_for_reply(ws), original=message)
+                more_page, context = self.process_incoming_message(await self.wait_for_reply(ws), original=message, **kwargs)
 
     async def send_and_wait_message(self, ws: websockets.WebSocketClientProtocol, **kwargs):
         if(kwargs.get('header') and kwargs.get('data')):
@@ -303,9 +311,8 @@ class WebsocketClient:
         else:
             print(
                 f"Event returned {(len(response_body[1]))} results total.")
-            if(kwargs.get('original')):
-                msgid = kwargs.get('original')[1]
-                self.save_object_to_json(msgid, response)
+            if not kwargs.get('skip_export'):
+                self.save_object_to_json(response[1], response)
 
     def attachment_ack(self, response: list, **kwargs) -> bool:
         print("Reply:\n" + json.dumps(response, default=lambda x: "<" +
@@ -319,8 +326,9 @@ class WebsocketClient:
             if(response_body[1][1].get('attachment')):
                 attachment = response_body[1][1].get('attachment')
                 print(f"We got the attachment!")
-                self.save_attachment(response_body[1][1].get(
-                    'attachmentid'), attachment, format=response_body[1][1].get('meta'))
+                if not kwargs.get('skip_export'):
+                    self.save_attachment(response_body[1][1].get(
+                        'attachmentid'), attachment, format=response_body[1][1].get('meta'))
                 return False
             else:
                 print("Attachment not yet received..")
@@ -332,12 +340,13 @@ class WebsocketClient:
         response_body = response[10]
         attachment = response_body[0].get('attachment')
         print(f"We got the attachment!")
-        self.save_attachment(response_body[0].get(
-            'attachmentid'), attachment, format=response_body[0].get('meta'))
+        if not kwargs.get('skip_export'):
+            self.save_attachment(response_body[0].get(
+                'attachmentid'), attachment, format=response_body[0].get('meta'))
 
     def query_ack(self, response: list, **kwargs):
-        print("Query reply:\n: " + json.dumps(response,
-                                              default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
+        #print("Query reply:\n: " + json.dumps(response,
+        #                                      default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
         max_length = 12
         response_body = response[10]
         if not self.is_ack_ok(response):
@@ -347,10 +356,8 @@ class WebsocketClient:
         else:
             print(
                 f"Query was successful! Total of {response_body[1][0]} record(s) returned.")
-
-            if(kwargs.get('original')):
-                msgid = kwargs.get('original')[1]
-                self.save_object_to_json(msgid, response)
+            if not kwargs.get('skip_export'):
+                self.save_object_to_json(response[1], response)
             return response_body[1][2], response_body[1][3]
 
     def printErrorInACK(self, message: list):
@@ -456,8 +463,8 @@ class MessageUtil:
         ]
 
     @staticmethod
-    def create_message_from_data(header_type: DataType, data):
-        return MessageUtil.create_message_from_header_and_data(MessageUtil.create_header(header_type), data)
+    def create_message_from_data(header_type: DataType, data, **kwargs):
+        return MessageUtil.create_message_from_header_and_data(MessageUtil.create_header(header_type, **kwargs), data)
 
     @staticmethod
     def hex(text: str) -> str:

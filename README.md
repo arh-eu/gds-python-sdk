@@ -176,7 +176,7 @@ $ python .\simple_client.py -query "SELECT * FROM multi_event"
 
 The rows returned by the GDS will be printed on your output, one record per line.
 
-It is possible, that your query has more than one pages available. By default, only 300 rows will be returned by the GDS (if you do not specify the `LIMIT` in your SQL and the config does not sets another limit for this).
+It is possible, that your query has more than one pages available. By default, only 300 rows will be returned by the GDS (if you do not specify the `LIMIT` in your SQL and the config does not set another limit for this, which is maximized in 300 result per page).
 In these cases you have send a Next Query Page request, which will give you the next 300 records found.
 
 If you do not want to bother by manually sending these requests, you can use the `-queryall` flag instead, that will automatically send these Next Query Page requests as long as there are additional pages with records available.
@@ -418,8 +418,10 @@ If you do not want to wait for or do not need the reply you should invoke the `s
     await self.send_message(ws, header, insertdata)
 ```
 
+It is possible that you do not want to save the result as a `json` for some reason. In this case you can pass the `skip_export=True` parameter to your `send..` calls, and in this case the reply will not be dumped.
+
 The `ConsoleClient` is not made for embedded usage, as the sending and receiving methods are not outsourced to separate threads running endlessly with a possible queue behind them, sending messages and creating responses, and calling the appropriate callbacks. Therefore they will block the main thread until the timeout expires.
 
 Sending many requests in a very short time frame could lead to unexpected behavior here, as the order of the replies is not fixed, a request sent later might be processed before the one you sent first, therefore the replies will not arrive in the order of the requests.
 
-If you want to use the client in a bigger application as a module, you should inherit the `WebsocketClient` class and customize it for your needs.
+If you want to use the client in a bigger application as a module, you should inherit the `WebsocketClient` class and customize it for your needs based on the SDK description.
