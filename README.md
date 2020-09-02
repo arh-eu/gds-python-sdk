@@ -224,6 +224,21 @@ Any additional parameter you specify can be accessed by the `self.args` variable
 
 Business logic of the client should be implemented in the `client_code(..)` method. When the method returns, the client will close the active websocket connection and exit. Not overriding the `client_code(..)` will result in a `NotImplementedError()`.
 
+The minimal working client is the following:
+
+```python
+
+import GDSClient
+import websockets
+
+class CustomGDSClient(GDSClient.WebsocketClient):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    async def client_code(self, ws: websockets.WebSocketClientProtocol):
+      pass
+```
+
 The arguments passed (and parsed) to the client are always available through the `args` dictionary found in `self`. These keys will not have the hyphen (`-`) as their prefix, as it will get removed during parsing by the `argparse` module.
 
 As the messages sent in the communication channels have to be packed and unpacked by the `msgpack` library, the `send(..)` and `recv(..)` methods will automatically do these conversions between the `Python` and `msgpack` types.
