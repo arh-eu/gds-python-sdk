@@ -100,12 +100,8 @@ class WebsocketClient:
         await ws.send(MessageUtil.pack(data))
 
     async def recv(self, ws: websockets.WebSocketClientProtocol):
-        try:
-            data = await ws.recv()
-            return MessageUtil.unpack(data)
-        except msgpack.exceptions.ExtraData as e:
-            #print(f"Could not unpack data: {''.join('{:02x}'.format(x) for x in data)}")
-            raise e
+        data = await ws.recv()
+        return MessageUtil.unpack(data)
 
     async def wait_for_reply(self, ws: websockets.WebSocketClientProtocol):
         try:
@@ -345,8 +341,8 @@ class WebsocketClient:
                 'attachmentid'), attachment, format=response_body[0].get('meta'))
 
     def query_ack(self, response: list, **kwargs):
-        #print("Query reply:\n: " + json.dumps(response,
-        #                                      default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
+        print("Query reply:\n: " + json.dumps(response,
+                                              default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
         max_length = 12
         response_body = response[10]
         if not self.is_ack_ok(response):
