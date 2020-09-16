@@ -200,6 +200,8 @@ Messages consist two parts, a [header](https://github.com/arh-eu/gds/wiki/Messag
 First you will read about the code structure so you will know how to modify it, then you will see how can you create the headers and data parts, after that you can read how to combine those for a whole message that can be sent.
 The followings all assume that the login reply was successful.
 
+Please keep in mind that you should not send any messages until you have received the (positive) ACK for your login, otherwise the GDS will drop your connection as the authentication and authorization processes did not finish yet but your client is trying to send messages (which is invalid without a login ACK). The `WebsocketClient` will raise an error and will not call your client code on unsuccessful login, but if you implement your own wrapper class, do not forget it.
+
 #### Class structure
 
 First you should understand the basics of the `WebsocketClient` class. Since the communication over the websocket protocol is asynchronous, most of our methods that send or await messages have to be defined as `async`.
