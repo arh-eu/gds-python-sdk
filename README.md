@@ -73,7 +73,7 @@ By default, the username `"user"` and the url `"ws://127.0.0.1:8888/gate"` will 
 
 You probably want to specify the url and the username as well, so start the script like this:
 ```sh
-$ python .\simple_client.py -url "ws://192.168.255.254:8888/gate/" -username "john_doe" -query "SELECT * FROM multi_event"
+python .\simple_client.py -url "ws://192.168.255.254:8888/gate" -username "john_doe" -query "SELECT * FROM multi_event"
 ```
 
 The `-url` flag, and the corresponding `URL` value is optional, so is the `USERNAME`, specified by the `-username` flag.
@@ -84,7 +84,7 @@ The order of the parameters is not fixed, but you can only use one type of messa
 If you need to specify the password used at login to the GDS as well, the `-password` flag can be used for this.
 
 ```sh
-$ python .\simple_client.py -url "ws://192.168.255.254:8888/gate/" -username "john_doe" -password "$ecretp4$$w0rD" -query "SELECT * FROM multi_event"
+python .\simple_client.py -url "ws://192.168.255.254:8888/gate" -username "john_doe" -password "$ecretp4$$w0rD" -query "SELECT * FROM multi_event"
 ```
 ###### timeout
 
@@ -93,7 +93,7 @@ Probably you do not want to wait for ever for your replies. You can have a timeo
 A timeout where the server does not respond to your login request can be the following:
 
 ```sh
-$ python .\simple_client.py -query "SELECT * FROM multi_event" -timeout 10
+python .\simple_client.py -query "SELECT * FROM multi_event" -timeout 10
 Sending <login> message..
 Waiting <login> reply..
 The given timeout (10 seconds) has passed without any response from the server!
@@ -107,7 +107,7 @@ The GDS usually runs on a different port (and endpoint) for secure connection. Y
 
 
 ```sh
-$ python .\simple_client.py -url "wss://127.0.0.1:8443/gates" -cert "my_cert_file.p12" -secret "My_$3CreT_TŁS_P4s$W0RĐ" -query "SELECT * FROM multi_event"
+python .\simple_client.py -url "wss://127.0.0.1:8443/gates" -cert "my_cert_file.p12" -secret "My_$3CreT_TŁS_P4s$W0RĐ" -query "SELECT * FROM multi_event"
 ```
 
 If you need help about the usage of the program, it can be printed by the `--help` flag.
@@ -117,13 +117,13 @@ To insert into a table, you only have to specify your `INSERT` statement.
 The client will print the reply.
 
 ```sh
-$ python .\simple_client.py -insert "INSERT INTO multi_event (id, images) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments picture1.bmp
+python .\simple_client.py -insert "INSERT INTO multi_event (id, images) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments picture1.bmp
 ```
 ##### UPDATE
 
 A simple `UPDATE` statement can be specified by the following command:
 ```sh
-$ python .\simple_client.py -update "UPDATE multi_event SET speed = 15 WHERE id='EVNT2006241023125470'"
+python .\simple_client.py -update "UPDATE multi_event SET speed = 15 WHERE id='EVNT2006241023125470'"
 ```
 
 If you specify an update event, you _have to_ use an ID field in the `WHERE` condition, otherwise your request will not be accepted.
@@ -134,7 +134,7 @@ Just as at the `INSERT`, the ACK message will be displayed here as well.
 
 A simple `MERGE` statement can be specified by the following command:
 ```sh
-$ python .\simple_client.py -merge "MERGE INTO multi_event USING (SELECT 'EVNT2006241023125470' as id, 'ABC123' as plate, 100 as speed) I ON (multi_event.id = I.id) WHEN MATCHED THEN UPDATE SET multi_event.speed = I.speed WHEN NOT MATCHED THEN INSERT (id, plate) VALUES (I.id, I.plate)"
+python .\simple_client.py -merge "MERGE INTO multi_event USING (SELECT 'EVNT2006241023125470' as id, 'ABC123' as plate, 100 as speed) I ON (multi_event.id = I.id) WHEN MATCHED THEN UPDATE SET multi_event.speed = I.speed WHEN NOT MATCHED THEN INSERT (id, plate) VALUES (I.id, I.plate)"
 ```
 The reply will be printed to the console, just as above.
 
@@ -153,7 +153,7 @@ The _attachment ID_ has the same restriction, the difference is the prefix. Inst
 Since the format is these messages have to follow is very strict, you will have to use `hex` values in your event strings for the _binary  IDs_ of your attachments. These `hex` values are unique identifiers for your binaries. To get the `hex` value of a string you can use the console client with the `-hex` flag to print these values. You can also enter multiple names, separating them by semicolon (`;`):
 
 ```sh
-$ python .\simple_client.py -hex "picture1.bmp;picture3.bmp"
+python .\simple_client.py -hex "picture1.bmp;picture3.bmp"
 The hex value of `picture1.bmp` is: 0x70696374757265312e626d70
 The hex value of `picture3.bmp` is: 0x70696374757265332e626d70
 ```
@@ -163,7 +163,7 @@ To attach files to your events (named "binary contents") you should use the `-at
 The attachments are the names of your files found in the `attachments` folder. These names are automatically converted into `hex` values, and the contents of these files will be sent with your message (see the [wiki](https://github.com/arh-eu/gds/wiki/Message-Data#Event---Data-Type-2)).
 ```sh
 #inserting one attachment to the table
-$ python .\simple_client.py -event "INSERT INTO multi_event (id, images) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments "picture1.bmp"
+python .\simple_client.py -event "INSERT INTO multi_event (id, images) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments "picture1.bmp"
 ```
 
 If the file you specify is not present, the client will print an error message without sending the message.
@@ -171,7 +171,7 @@ If the file you specify is not present, the client will print an error message w
 ##### SELECT query
 A simple `SELECT` query statement can be specified by the following command:
 ```sh
-$ python .\simple_client.py -query "SELECT * FROM multi_event"
+python .\simple_client.py -query "SELECT * FROM multi_event"
 ```
 
 The rows returned by the GDS will be printed on your output, one record per line.
@@ -185,7 +185,7 @@ If you do not want to bother by manually sending these requests, you can use the
 
 A simple `SELECT` attachment query statement can be specified by the following command:
 ```sh
-$ python .\simple_client.py -attachment "SELECT * FROM \"multi_event-@attachment\" WHERE id='ATID2006241023125470' and ownerid='EVNT2006241023125470' FOR UPDATE WAIT 86400"
+python .\simple_client.py -attachment "SELECT * FROM \"multi_event-@attachment\" WHERE id='ATID2006241023125470' and ownerid='EVNT2006241023125470' FOR UPDATE WAIT 86400"
 ```
 Please be careful, as the table name in this examples should be in double quotes, so it should be escaped by backslash, otherwise the parameters will not be parsed right. The reason for this is that the `SQL` standard does not support hyphens in table names, therefore it should be treated differently.
 
