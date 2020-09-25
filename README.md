@@ -174,12 +174,11 @@ A simple `SELECT` query statement can be specified by the following command:
 python .\simple_client.py -query "SELECT * FROM multi_event"
 ```
 
-The rows returned by the GDS will be printed on your output, one record per line.
+The rows returned by the GDS will be printed on your output in json format.
 
 It is possible, that your query has more than one pages available. By default, only 300 rows will be returned by the GDS (if you do not specify the `LIMIT` in your SQL and the config does not set another limit for this, which is maximized in 300 result per page).
-In these cases you have send a Next Query Page request, which will give you the next 300 records found.
 
-If you do not want to bother by manually sending these requests, you can use the `-queryall` flag instead, that will automatically send these Next Query Page requests as long as there are additional pages with records available.
+If you want all the pages, not just the first one, you can use the `-queryall` flag instead.
 
 ##### SELECT attachment
 
