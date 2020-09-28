@@ -112,13 +112,37 @@ python .\simple_client.py -url "wss://127.0.0.1:8443/gates" -cert "my_cert_file.
 
 If you need help about the usage of the program, it can be printed by the `--help` flag.
 
-##### INSERT
-To insert into a table, you only have to specify your `INSERT` statement.
-The client will print the reply.
+##### Event Command
+
+The `INSERT`, `UPDATE` and `MERGE` messages are also known as _`EVENT`_ messages. Events can have attachments as well, and you can upload these to the GDS by sending them _with your event_.
+
+The _event ID_ has to follow a format of `"EVNTyyMMddHHmmssSSS0"`, where the first 4 letters are the abbreviation of "event", while the rest specifies a timestamp code from. This will make `"EVNT2006241023125470"` a valid ID in an event table.
+
+The _attachment ID_ has the same restriction, the difference is the prefix. Instead of the `EVNT` you should use `ATID`. The ID for the attachment can be `"ATID2006241023125470"`.
+
+Since the format these messages have to follow is very strict, you will have to use `hex` values in your event strings for the _binary  IDs_ of your attachments. These `hex` values are unique identifiers for your binaries. To get the `hex` value of a string you can use the console client with the `-hex` flag to print these values. The client will print the results without any connection to a GDS. You can also enter multiple names, separating them by semicolon (`;`):
 
 ```sh
-python .\simple_client.py -insert "INSERT INTO multi_event (id, images) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments picture1.bmp
+python .\simple_client.py -hex "picture1.bmp;picture3.bmp"
+The hex value of `picture1.bmp` is: 0x70696374757265312e626d70
+The hex value of `picture3.bmp` is: 0x70696374757265332e626d70
 ```
+These _binary IDs_ (with the `0x` prefix) have to be in your `EVENT` `SQL` string. 
+
+To attach files to your events (named "binary contents") you should use the `-attachments` flag with your `EVENT`.
+The attachments are the names of your files found in the `attachments` folder. These names are automatically converted into `hex` values, and the contents of these files will be sent with your message (see the [wiki](https://github.com/arh-eu/gds/wiki/Message-Data#Event---Data-Type-2)).
+
+##### INSERT
+
+To insert into a table, you only have to specify your `INSERT` statement.
+The client will print the reply.
+```sh
+#inserting one attachment to the table
+python .\simple_client.py -event "INSERT INTO multi_event (id, images) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments "picture1.bmp"
+```
+
+If the file you specify is not present, the client will print an error message without sending the message.
+
 ##### UPDATE
 
 A simple `UPDATE` statement can be specified by the following command:
@@ -141,32 +165,6 @@ The reply will be printed to the console, just as above.
 ##### DELETE
 
 You cannot specify `DELETE` statements in the GDS.
-
-##### Sending Attachments with Events
-
-The `INSERT`, `UPDATE` and `MERGE` messages are also known as _`EVENT`_ messages. Events can have attachments as well, and you can upload these to the GDS by sending them _with your event_.
-
-The _event ID_ has to follow a format of `"EVNTyyMMddHHmmssSSS0"`, where the first 4 letters are the abbreviation of "event", while the rest specifies a timestamp code from. This will make `"EVNT2006241023125470"` a valid ID in an event table.
-
-The _attachment ID_ has the same restriction, the difference is the prefix. Instead of the `EVNT` you should use `ATID`. The ID for the attachment can be `"ATID2006241023125470"`.
-
-Since the format these messages have to follow is very strict, you will have to use `hex` values in your event strings for the _binary  IDs_ of your attachments. These `hex` values are unique identifiers for your binaries. To get the `hex` value of a string you can use the console client with the `-hex` flag to print these values. The client will print the results without any connection to a GDS. You can also enter multiple names, separating them by semicolon (`;`):
-
-```sh
-python .\simple_client.py -hex "picture1.bmp;picture3.bmp"
-The hex value of `picture1.bmp` is: 0x70696374757265312e626d70
-The hex value of `picture3.bmp` is: 0x70696374757265332e626d70
-```
-These _binary IDs_ (with the `0x` prefix) have to be in your `EVENT` `SQL` string. 
-
-To attach files to your events (named "binary contents") you should use the `-attachments` flag with your `EVENT`.
-The attachments are the names of your files found in the `attachments` folder. These names are automatically converted into `hex` values, and the contents of these files will be sent with your message (see the [wiki](https://github.com/arh-eu/gds/wiki/Message-Data#Event---Data-Type-2)).
-```sh
-#inserting one attachment to the table
-python .\simple_client.py -event "INSERT INTO multi_event (id, images) VALUES('EVNT2006241023125470', array('ATID2006241023125470')); INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'image/bmp', 0x70696374757265312e626d70 )" -attachments "picture1.bmp"
-```
-
-If the file you specify is not present, the client will print an error message without sending the message.
 
 ##### SELECT query
 A simple `SELECT` query statement can be specified by the following command:
