@@ -63,6 +63,12 @@ If you go with the easy mode, you do not have to know or worry about how to writ
 
 The easy mode will send the message you specify, and will await for the corresponding ACK messages and print them to your console (see more about them [here](https://github.com/arh-eu/gds/wiki/Message-Data)).
 
+If you need help about the usage, the syntax can be printed by the --help flag.
+```sh
+python .\simple_client.py --help
+```
+
+
 ##### Connection information
 
 ###### URL
