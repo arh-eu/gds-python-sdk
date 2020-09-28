@@ -130,7 +130,7 @@ The hex value of `picture3.bmp` is: 0x70696374757265332e626d70
 These _binary IDs_ (with the `0x` prefix) have to be in your `EVENT` `SQL` string. 
 
 To attach files to your events (named "binary contents") you should use the `-attachments` flag with your `EVENT`.
-The attachments are the names of your files found in the `attachments` folder. These names are automatically converted into `hex` values, and the contents of these files will be sent with your message (see the [wiki](https://github.com/arh-eu/gds/wiki/Message-Data#Event---Data-Type-2)).
+The attachments are the names of your files found in the `attachments` folder. You can enter multiple names, separating them by semicolon (`;`). These names are automatically converted into `hex` values, and the contents of these files will be sent with your message (see the [wiki](https://github.com/arh-eu/gds/wiki/Message-Data#Event---Data-Type-2)).
 
 ##### INSERT
 
