@@ -156,7 +156,7 @@ The _event ID_ has to follow a format of `"EVNTyyMMddHHmmssSSS0"`, where the fir
 
 The _attachment ID_ has the same restriction, the difference is the prefix. Instead of the `EVNT` you should use `ATID`. The ID for the attachment can be `"ATID2006241023125470"`.
 
-Since the format is these messages have to follow is very strict, you will have to use `hex` values in your event strings for the _binary  IDs_ of your attachments. These `hex` values are unique identifiers for your binaries. To get the `hex` value of a string you can use the console client with the `-hex` flag to print these values. The client will print the results without any connection to a GDS. You can also enter multiple names, separating them by semicolon (`;`):
+Since the format these messages have to follow is very strict, you will have to use `hex` values in your event strings for the _binary  IDs_ of your attachments. These `hex` values are unique identifiers for your binaries. To get the `hex` value of a string you can use the console client with the `-hex` flag to print these values. The client will print the results without any connection to a GDS. You can also enter multiple names, separating them by semicolon (`;`):
 
 ```sh
 python .\simple_client.py -hex "picture1.bmp;picture3.bmp"
