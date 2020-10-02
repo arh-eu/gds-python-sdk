@@ -48,6 +48,7 @@ class StatusCode(Enum):
     NOT_ACCEPTABLE_406 = 406
     TIMEOUT = 408
     CONFLICT = 409
+    GONE = 410
     PRECONDITION_FAILED = 412
     TOO_MANY_REQUESTS = 429
     INTERNAL_SERVER_ERROR = 500
@@ -235,7 +236,7 @@ class WebsocketClient:
             )
 
     async def send_and_wait_query(self, ws: websockets.WebSocketClientProtocol, querystr: str, **kwargs):
-        message = await self.query(ws, querystr)
+        message = await self.query(ws, querystr, **kwargs)
         more_page, context = self.process_incoming_message(await self.wait_for_reply(ws), original=message, **kwargs)
         if(kwargs.get('all')):
             while(more_page):
