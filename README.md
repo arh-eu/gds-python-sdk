@@ -439,3 +439,12 @@ The `ConsoleClient` is not made for embedded usage, as the sending and receiving
 Sending many requests in a very short time frame could lead to unexpected behavior here, as the order of the replies is not fixed, a request sent later might be processed before the one you sent first, therefore the replies will not arrive in the order of the requests.
 
 If you want to use the client in a bigger application as a module, you should inherit the `WebsocketClient` class and customize it for your needs based on the SDK description.
+
+##### Optional arguments
+
+The methods callable in the client can always accept named parameters, if you need them later. However, some parameters are used for special cases, and can be specified by you as well:
+
+ - `skip_export(=True)` - skips the exporting (saving) of the reply. Useful if you want to test your application without I/O operations.
+ - `print_simple(=True)`- The dumping the whole `JSON` to the screen will be skipped, and only the most useful parts of the reply will be printed to the screen.
+
+More values might be added in the future.

@@ -217,16 +217,16 @@ class WebsocketClient:
     def is_ack_ok(self, ack_mesage: list, ok_statuses=[200]) -> bool:
         return (ack_mesage[10] is not None) and (ack_mesage[10][0] in ok_statuses)
 
-    async def send_and_wait_event(self, ws: websockets.WebSocketClientProtocol, eventstr: str):
-        message = await self.event(ws, eventstr)
-        self.process_incoming_message(await self.wait_for_reply(ws), original=message)
+    async def send_and_wait_event(self, ws: websockets.WebSocketClientProtocol, eventstr: str, **kwargs):
+        message = await self.event(ws, eventstr, **kwargs)
+        self.process_incoming_message(await self.wait_for_reply(ws), original=message, **kwargs)
 
-    async def send_and_wait_attachment(self, ws: websockets.WebSocketClientProtocol, attachstr: str):
-        await self.attachment(ws, attachstr)
+    async def send_and_wait_attachment(self, ws: websockets.WebSocketClientProtocol, attachstr: str, **kwargs):
+        await self.attachment(ws, attachstr, **kwargs)
         should_wait = self.process_incoming_message(await self.wait_for_reply(ws))
         if(should_wait):
             response = await self.wait_for_reply(ws)
-            self.process_incoming_message(response)
+            self.process_incoming_message(response, **kwargs)
             print("Sending the Attachment ACK back to the GDS..")
             await self.attachment_response_ack(
                 ws,
@@ -299,8 +299,7 @@ class WebsocketClient:
             raise
 
     def event_ack(self, response: list, **kwargs):
-        print("Reply:\n: " + json.dumps(response, default=lambda x: "<" +
-                                        str(sys.getsizeof(x)) + " bytes>", indent=4))
+        self.print_reply(response, **kwargs)
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
             print("Error during the event request!")
@@ -312,8 +311,7 @@ class WebsocketClient:
                 self.save_object_to_json(response[1], response)
 
     def attachment_ack(self, response: list, **kwargs) -> bool:
-        print("Reply:\n" + json.dumps(response, default=lambda x: "<" +
-                                      str(sys.getsizeof(x)) + " bytes>", indent=4))
+        self.print_reply(response, **kwargs)
         response_body = response[10]
         if(not self.is_ack_ok(response, [200, 201, 202])):
             print("Error during the attachment request!")
@@ -332,8 +330,7 @@ class WebsocketClient:
                 return True
 
     def attachment_response(self, response: list, **kwargs):
-        print("Reply:\n" + json.dumps(response, default=lambda x: "<" +
-                                      str(sys.getsizeof(x)) + " bytes>", indent=4))
+        self.print_reply(response, **kwargs)
         response_body = response[10]
         attachment = response_body[0].get('attachment')
         print(f"We got the attachment!")
@@ -342,8 +339,7 @@ class WebsocketClient:
                 'attachmentid'), attachment, format=response_body[0].get('meta'))
 
     def query_ack(self, response: list, **kwargs):
-        print("Query reply:\n: " + json.dumps(response,
-                                              default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
+        self.print_reply(response, **kwargs)
         max_length = 12
         response_body = response[10]
         if not self.is_ack_ok(response):
@@ -356,6 +352,12 @@ class WebsocketClient:
             if not kwargs.get('skip_export'):
                 self.save_object_to_json(response[1], response)
             return response_body[1][2], response_body[1][3]
+    
+    def print_reply(self, message: any, **kwargs):
+        if kwargs.get('print_simple'):
+            print("Reply arrived!")
+        else:
+            print("Reply:\n: " + json.dumps(message, default=lambda x: "<" + str(sys.getsizeof(x)) + " bytes>", indent=4))
 
     def printErrorInACK(self, message: list):
         print(f"Error status code returned: {message[0]} ({StatusCode(message[0]).name})")
