@@ -1,32 +1,4 @@
-- [Installation](#installation)
-- [Communication](#communication)
-- [Login to the GDS](#login-to-the-gds)
-  * [Console Client](#console-client)
-    + [Easy mode](#easy-mode)
-      - [Connection information](#connection-information)
-        * [URL](#url)
-        * [username](#username)
-        * [password](#password)
-        * [timeout](#timeout)
-        * [TLS](#tls)
-      - [Event Command](#event-command)
-      - [INSERT](#insert)
-      - [UPDATE](#update)
-      - [MERGE](#merge)
-      - [DELETE](#delete)
-      - [SELECT query](#select-query)
-      - [SELECT attachment](#select-attachment)
-  * [Detailed mode](#detailed-mode)
-    + [Class structure](#class-structure)
-      - [Response handlers](#response-handlers)
-    + [Message Headers](#message-headers)
-    + [Message Data](#message-data)
-      - [INSERT, UPDATE, MERGE, DELETE](#insert--update--merge--delete)
-      - [SELECT query](#select-query-1)
-      - [SELECT attachment](#select-attachment-1)
-    + [Sending custom messages](#sending-custom-messages)
-
-## Installation
+# Installation
 
 To install and use the `Python` library you have to install two components our classes depend on, the MessagePack wrappers for the messages and the WebSocket protocol for the communication.
 
@@ -38,7 +10,7 @@ For TLS connection you will also need the `pyOpenSSL` libraries, which can be in
 
 Please keep in mind that you need to have `Python 3.6.1` or newer to install the dependencies (you can install it from [here](https://www.python.org/downloads/)).
 
-## Communication
+# Communication
 
 The communication is based on a request-response pattern. You send your request to the GDS, which will response with (usually) an acknowledgement message (ACK). Most of the time this ACK message will contain the data you were waiting for as well, so there are no extra messages sent around.
 
@@ -46,47 +18,68 @@ Before any other message can be sent, clients are required to send a _login_ mes
 
 Messages have two parts, _headers_ and _data_. The header contains basic information about your message (like timestamps or message identifiers) but also define the structure and contents of the _data_ part. For example a message, where the header has the type of `0` means that this message is a `CONNECTION`, or _login_ message, so the data part (the rest of the message) should be treated as such.
 
-If you want to send messages and receive answers the fastest way, you want to read the [Easy mode](#easy-mode) of the Console Client.
+If you want to send requests and receive responses the fastest way, you want to read the [Console Client](#console-client).
 
 If you want full control over the sent and received messages, you should head to the [Detailed mode](#detailed-mode).
 
 For the SQL support restrictions about the strings you can read the according [Wiki page](https://github.com/arh-eu/gds/wiki/SQL-support-and-restrictions).
 
-## Login to the GDS
+* [Console Client](#console-client)
+  + [Arguments](#arguments)
+    - [Options](#options)
+      * [URL](#url)
+      * [Username](#username)
+      * [Password](#password)
+      * [Timeout](#timeout)
+      * [TLS](#tls)
+    - [Commands](#commands)
+      * [EVENT command](#event-command)
+      * [ATTACHMENT-REQUEST command](#attachment-request-command)
+      * [QUERY command](#query-command)
+* [Detailed mode](#detailed-mode)
+  + [Creating the client](#creating-the-client)
+  + [Sending messages](#sending-messages)
+    - [EVENT messages](#event-messages)
+    - [ATTACHMENT-REQUEST message](#attachment-request-message)
+    - [QUERY message](#query-message)
+  + [Sending custom messages](#sending-custom-messages)
 
-Login messages are automatically generated and sent when you run the program (when you instantiate a `GDSClient` object). The client waits for the login reply before executing any other command, so you do not have to bother with this. If the login is unsuccessful (timeout or invalid credentials) the client will exit.
+## Console Client
 
-### Console Client
+If you go with the console client, you do not have to know or worry about how to write `Python` code in order to use the client.
 
-#### Easy mode
-If you go with the easy mode, you do not have to know or worry about how to write `Python` code in order to use the client.
+The console client will send the message you specify, and will await for the corresponding ACK messages and print them to your console (see more about them [here](https://github.com/arh-eu/gds/wiki/Message-Data)).
 
-The easy mode will send the message you specify, and will await for the corresponding ACK messages and print them to your console (see more about them [here](https://github.com/arh-eu/gds/wiki/Message-Data)).
+### Arguments
 
-##### Connection information
+#### Options
 
-###### URL
+##### URL
 
-By default, the username `"user"` and the url `"ws://127.0.0.1:8888/gate"` will be used (this assumes that your local computer has a GDS instance or the server simulator running on the port `8888`).
+By default, the username `"user"` and the url `"ws://127.0.0.1:8888/gate"` will be used (this assumes that your local computer has a GDS instance or the server simulator running on the port `8888`). But you can specify the url with the `-url` flag.
 
-###### username
+```sh
+python .\console_client.py -url "ws://192.168.255.254:8888/gate" -query "SELECT * FROM multi_event"
+```
+
+##### Username
 
 You probably want to specify the url and the username as well, so start the script like this:
 ```sh
-python .\simple_client.py -url "ws://192.168.255.254:8888/gate" -username "john_doe" -query "SELECT * FROM multi_event"
+python .\console_client.py -url "ws://192.168.255.254:8888/gate" -username "john_doe" -query "SELECT * FROM multi_event"
 ```
 
 The `-url` flag, and the corresponding `URL` value is optional, so is the `USERNAME`, specified by the `-username` flag.
 The order of the parameters is not fixed, but you can only use one type of message to be sent from the console.
 
-###### password
+##### Password
 
 If you need to specify the password used at login to the GDS as well, the `-password` flag can be used for this.
 
 ```sh
 python .\simple_client.py -url "ws://192.168.255.254:8888/gate" -username "john_doe" -password "$ecretp4$$w0rD" -query "SELECT * FROM multi_event"
 ```
-###### timeout
+##### Timeout
 
 Probably you do not want to wait for ever for your replies. You can have a timeout for the response ACK messages, which can be specified with the `-timeout` flag. By default, the value is `30` seconds.
 
@@ -99,7 +92,7 @@ Waiting <login> reply..
 The given timeout (10 seconds) has passed without any response from the server!
 ```
 
-###### TLS
+##### TLS
 
 For secured connections you also need to specify your PKCS12 formatted certificate file (`*.p12` format), which is set by the `-cert` flag. Since the file is password protected, this can be set with the `-secret` flag.
 
@@ -112,7 +105,9 @@ python .\simple_client.py -url "wss://127.0.0.1:8443/gates" -cert "my_cert_file.
 
 If you need help about the usage of the program, it can be printed by the `--help` flag.
 
-##### Event Command
+#### Commands
+
+##### EVENT command
 
 The `INSERT`, `UPDATE` and `MERGE` messages are also known as _`EVENT`_ messages. Events can have attachments as well, and you can upload these to the GDS by sending them _with your event_.
 
@@ -132,7 +127,7 @@ These _binary IDs_ (with the `0x` prefix) have to be in your `EVENT` `SQL` strin
 To attach files to your events (named "binary contents") you should use the `-attachments` flag with your `EVENT`.
 The attachments are the names of your files found in the `attachments` folder. You can enter multiple names, separating them by semicolon (`;`). These names are automatically converted into `hex` values, and the contents of these files will be sent with your message (see the [wiki](https://github.com/arh-eu/gds/wiki/Message-Data#Event---Data-Type-2)).
 
-##### INSERT
+INSERT
 
 To insert into a table, you only have to specify your `INSERT` statement.
 The client will print the reply.
@@ -143,30 +138,38 @@ python .\simple_client.py -event "INSERT INTO multi_event (id, images) VALUES('E
 
 If the file you specify is not present, the client will print an error message without sending the message.
 
-##### UPDATE
+UPDATE
 
 A simple `UPDATE` statement can be specified by the following command:
 ```sh
-python .\simple_client.py -update "UPDATE multi_event SET speed = 15 WHERE id='EVNT2006241023125470'"
+python .\simple_client.py -event "UPDATE multi_event SET speed = 15 WHERE id='EVNT2006241023125470'"
 ```
 
 If you specify an update event, you _have to_ use an ID field in the `WHERE` condition, otherwise your request will not be accepted.
 
 Just as at the `INSERT`, the ACK message will be displayed here as well.
 
-##### MERGE
+MERGE
 
 A simple `MERGE` statement can be specified by the following command:
 ```sh
-python .\simple_client.py -merge "MERGE INTO multi_event USING (SELECT 'EVNT2006241023125470' as id, 'ABC123' as plate, 100 as speed) I ON (multi_event.id = I.id) WHEN MATCHED THEN UPDATE SET multi_event.speed = I.speed WHEN NOT MATCHED THEN INSERT (id, plate) VALUES (I.id, I.plate)"
+python .\simple_client.py -event "MERGE INTO multi_event USING (SELECT 'EVNT2006241023125470' as id, 'ABC123' as plate, 100 as speed) I ON (multi_event.id = I.id) WHEN MATCHED THEN UPDATE SET multi_event.speed = I.speed WHEN NOT MATCHED THEN INSERT (id, plate) VALUES (I.id, I.plate)"
 ```
 The reply will be printed to the console, just as above.
 
-##### DELETE
+##### ATTACHMENT-REQUEST command
 
-You cannot specify `DELETE` statements in the GDS.
+A simple `SELECT` attachment query statement can be specified by the following command:
+```sh
+python .\simple_client.py -attachment "SELECT * FROM \"multi_event-@attachment\" WHERE id='ATID2006241023125470' and ownerid='EVNT2006241023125470' FOR UPDATE WAIT 86400"
+```
+Please be careful, as the table name in this examples should be in double quotes, so it should be escaped by backslash, otherwise the parameters will not be parsed right. The reason for this is that the `SQL` standard does not support hyphens in table names, therefore it should be treated differently.
 
-##### SELECT query
+The GDS might not have the specified attachment stored, in this case it can take a while until it can send you back its response. In this case your client will send back an ACK message which means that you have successfully received the attachments.
+
+Your attachments will be saved in the `attachments` folder with the Attachment id as their file name.
+
+##### QUERY command
 A simple `SELECT` query statement can be specified by the following command:
 ```sh
 python .\simple_client.py -query "SELECT * FROM multi_event"
@@ -178,36 +181,15 @@ It is possible, that your query has more than one pages available. By default, o
 
 If you want all the pages, not just the first one, you can use the `-queryall` flag instead.
 
-##### SELECT attachment
+## Detailed mode 
 
-A simple `SELECT` attachment query statement can be specified by the following command:
-```sh
-python .\simple_client.py -attachment "SELECT * FROM \"multi_event-@attachment\" WHERE id='ATID2006241023125470' and ownerid='EVNT2006241023125470' FOR UPDATE WAIT 86400"
-```
-Please be careful, as the table name in this examples should be in double quotes, so it should be escaped by backslash, otherwise the parameters will not be parsed right. The reason for this is that the `SQL` standard does not support hyphens in table names, therefore it should be treated differently.
+GDSClient is an async Context Manager, so you should use it with an `async with` statement. Before running your code inside the `async with` statement, the GDSClient will connect to the GDS. If the login is unsuccessful, the GDSClient will raise an error and will not run your code. At the end of the `async with` statement the client will automatically close the connection to the GDS, so you can not use the client outside the statement.
 
-The GDS might not have the specified attachment stored, in this case it can take a while until it can send you back its response. In this case your client will send back an ACK message which means that you have successfully received the attachments.
+### Creating the client
 
-Your attachments will be saved in the `attachments` folder with the messageID as their file name.
+To create the client you should use the constructor of the GDSClient class. The parameters, you want to use to set up your websocket connection, you should pass to the constructor of the GDSClient. You should specify these parameters by name, because they are not positional arguments.
 
-### Detailed mode 
-
-Messages consist two parts, a [header](https://github.com/arh-eu/gds/wiki/Message-Headers) and a [data](https://github.com/arh-eu/gds/wiki/Message-Data).
-
-First you will read about the code structure so you will know how to modify it, then you will see how can you create the headers and data parts, after that you can read how to combine those for a whole message that can be sent.
-The followings all assume that the login reply was successful.
-
-Please keep in mind that you should not send any messages until you have received the (positive) ACK for your login, otherwise the GDS will drop your connection as the authentication and authorization processes did not finish yet but your client is trying to send messages (which is invalid without a login ACK). The `WebsocketClient` will raise an error and will not call your client code on unsuccessful login, but if you implement your own wrapper class, do not forget it.
-
-#### Class structure
-
-First you should understand the basics of the `WebsocketClient` class. Since the communication over the websocket protocol is asynchronous, most of our methods that send or await messages have to be defined as `async`.
-
-The functions that are processing the replies do not have to be declared `async`, as it is not an asynchronous activity.
-
-The `WebsocketClient` connects to the GDS on the given URL (that can be specified by command line arguments and is passed to the `__init()__` with the `**kwargs` pattern), and if the login was successful it will call the `client_code(..)` method of the class with the active websocket connection descriptor as the parameter. Should the login fail, the client exits with the error message displayed.
-
-The `kwargs` contain mapped parameters, that are used to set up the (WebSocket) connection. Using the ConsoleClient initializes them from the command line arguments by the `argparse` library. However, for custom clients you can specify them as well to override the default values. These parameters are:
+These are the parameters you can specify for your client to override the default values:
 
   - `url` - the GDS url you wish to connect to. Default value is set to `ws://127.0.0.1:8888/gate`.
   - `username` - the username used for messages and login. Default is `user`.
@@ -219,127 +201,60 @@ If the `url` scheme is `wss` you can use TLS for encrypted connection. For this 
   - `cert` - the path to the file in PKCS12 format for the certificates (the `*.p12` file).
   - `secret` - The password used to generate and encrypt the `cert` file.
 
-Any additional parameter you specify can be accessed by the `self.args` variable in the whole class.
+Any additional parameter you specify can be accessed by the `args` variable in the client class.
 
-Business logic of the client should be implemented in the `client_code(..)` method. When the method returns, the client will close the active websocket connection and exit. Not overriding the `client_code(..)` will result in a `NotImplementedError()`.
+You should start your code like this:
 
-The minimal working client is the following:
 
 ```python
 
-import GDSClient
-import websockets
+from GDSClient import GDSClient, MessageUtil, DataType
+import asyncio
 
-class CustomGDSClient(GDSClient.WebsocketClient):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    async def client_code(self, ws: websockets.WebSocketClientProtocol):
+async def as_main():
+    async with GDSClient(username="user", url="ws://127.0.0.1:8888/gate") as client:
       pass
+
+def main():
+    asyncio.get_event_loop().run_until_complete(as_main())
 ```
 
-The arguments passed (and parsed) to the client are always available through the `args` dictionary found in `self`. These keys will not have the hyphen (`-`) as their prefix, as it will get removed during parsing by the `argparse` module.
+Now your client is initialized and connected to the GDS, so you can use the client (inside the `async with` statement) to send and receive messages.
 
-As the messages sent in the communication channels have to be packed and unpacked by the `msgpack` library, the `send(..)` and `recv(..)` methods will automatically do these conversions between the `Python` and `msgpack` types.
+You should write your code inside the `async with` statement, but to make reading easier, in the rest of this guide examples will not contain the `async with` statement.
 
-The `wait_for_reply(..)` method will call the `recv(..)` method, but if there is no response to be received by the timeout set in the client, it will raise a `TimeoutError` so you might want to use this instead of calling the `recv(..)` method itself.
+### Sending messages
 
-##### Response handlers
+Messages consists two parts, a [header](https://github.com/arh-eu/gds/wiki/Message-Headers) and a [data](https://github.com/arh-eu/gds/wiki/Message-Data). You can send messages without specifying the header part. In this case the header will created automatically. To see how to send a message by specifying the header part too, go to the [Sending custom messages](#sending-custom-messages) section.
 
-The client has some predefined functions which you can override to use custom logic with the (ACK) responses the GDS gives you. These methods are the following:
+The GDSClient `send...()` methods will wait for the response to the message they have sent and will return with the response. If the type of the response is not the expected type then the client will raise an error and will print the error to the console.
 
-```python
-  def event_ack(self, response: list, **kwargs)
+The `send...()` methods are async functions, so you have to write `await` before them.
 
-  def attachment_ack(self, response: list, **kwargs) -> bool
+#### EVENT messages
 
-  def attachment_response(self, response: list, **kwargs)
-  
-  def query_ack(self, response: list, **kwargs) -> Tuple[bool, list]
-```
+The INSERT, UPDATE and MERGE messages have the same format, since they are all _event_ messages. This means, all three can be created by the `create_event_data2(..)` method of the MessageUtil class.
 
-All of those will get the returned response as their parameter, which you can handle as you want.
+The string of the operations should be separated by the semicolon character (`;`). If there is only one operation, you do not need to bother with it, otherwise use it as a separator.
 
-For the default implementations check the `WebsocketClient` class. For the ACK message structure you should check out the [wiki](https://github.com/arh-eu/gds/wiki/ACK-Message-Format), as usual. Keep in mind that the wiki usually specifies the message 
-
-#### Message Headers
-
-To create a message header, you can use the `MessageUtil` class found in the `GDSClient` module, which has a static method named `create_header(..)`. It requires a parameter for the message type (`header_type`), which is an enum defined in this package named `DataType`.
-
-Enum values are the following:
-```python
-class DataType(Enum):
-    CONNECTION = 0
-    CONNECTION_ACK = 1
-    EVENT = 2
-    EVENT_ACK = 3
-    ATTACHMENT_REQUEST = 4
-    ATTACHMENT_REQUEST_ACK = 5
-    ATTACHMENT_RESPONSE = 6
-    ATTACHMENT_RESPONSE_ACK = 7
-    EVENT_DOCUMENT = 8
-    EVENT_DOCUMENT_ACK = 9
-    QUERY_REQUEST = 10
-    QUERY_REQUEST_ACK = 11
-    NEXT_QUERY_PAGE_REQUEST = 12
-```
-
- The `create_header(..)` method has the rest of the header fields listed as optional parameters. If you do not specify of them, the message header will have the following (default) values:
-
-```python
-header = GDSClient.MessageUtil.create_header(GDSClient.DataType.QUERY_REQUEST)
-print(header)
-
-# output is the following:
-["user", "<msgid>", <now>, <now>, False, None, None, None, None, 10]
-```
-, where `"<msgid>"` is a randomly generated `UUID` string, and `<now>` stands for the current time in milliseconds. Keep in mind that message IDs should be unique, therefore using `UUID`s for them is a very convenient and easy way.
-
-
-The creation of a header message with the username `"john_doe"` for a query message can be created like this:
-```python
-header = GDSClient.MessageUtil.create_header(GDSClient.DataType.QUERY_REQUEST, username="john_doe")
-```
-
-The possible parameter names for the values of the `create_header(..)` method are the followings:
-```python
-username, msgid, create_time, request_time, fragmented, first_fragment, last_fragment, offset, full_data_size
-```
-
-For the accepted values and restrictions on the format of the header do not forget to check the [GDS Wiki](https://github.com/arh-eu/gds/wiki/Message-Headers).
-
-#### Message Data
-
-The data part can be created by the `MessageUtil` class as well, based on what type of message you want to send.
-
-Similar to the headers, these use default values to simplify the calls for the general usage.
-
-##### INSERT, UPDATE, MERGE, DELETE
-
-DELETE is not supported by the GDS, so even if you try to send an event message with a `DELETE` statement, you will receive an error message about it.
-
-The INSERT, UPDATE and MERGE messages have the same format, since they are all _event_ messages. This means, all three can be created by the `create_event_data(..)` method.
-
-The string of the operations should be separated by the semicolon character (`;`). If there is only one operation, you do not need to bother with it, otherwise use it as separator.
-
-The binary contents are usually set automatically by reading the files passed to the client by the `-attachments` flag.
-
-This will read the files, create the appropriate hex values of their names and store the contents in the `binary_contents` map.
-
-If you want to customize this, you should omit the `-attachments` flag from the console, and use the `binary_contents` field of the `create_event_data(..)` method.
+You can use the `binary_contents` field of the `create_event_data2(..)` method to give the attachments to your event messages.
 
 To add the `priority_levels`, you can specify this parameter as well.
+
+You can omit the `binary_contents` and the `priority_levels` parameter, but not the `eventstr` parameter.
 
 Allowed fields became:
 ```python
 eventstr, binary_contents, priority_levels
 ```
 
-The `eventstr` parameter does not need to be specified by name, as it is a positional argument. The rest are named, you should use them by name.
+The `eventstr`, `binary_contents` and `priority_levels` are detailed on their [Wiki page](https://github.com/arh-eu/gds/wiki/Message-Data#Event---Data-Type-2). The `binary_contents` is a dictionary (associative array or map) containing the mappings of the binary contents, the `priority_levels` is an array of the priority levels.
 
-The `binary_contents` and `priority_levels` are detailed on their [Wiki page](https://github.com/arh-eu/gds/wiki/Message-Data#Event---Data-Type-2). The former is a dictionary (associative array or map) containing the mappings of the binary contents, the latter is an array of the priority levels.
+You should specify all these parameters by name because they are not positional arguments.
 
-An example with binary contents and priority levels can be the following:
+After the creation of the event data, you can send the event message with the `send_event2(...)` method. You should pass the data as a parameter, and specify it by name.
+
+An example with `binary_contents` and `priority_levels` can be the following:
 
 ```python
 operations = ";".join([
@@ -357,94 +272,144 @@ levels = [
     ]
 ]
 
-event_data = GDSClient.MessageUtil.create_event_data(operations, binary_contents = contents, priority_levels = levels)
+event_data = MessageUtil.create_event_data2(eventstr=operations, binary_contents = contents, priority_levels = levels)
+event_reply = await client.send_event2(data = event_data)
 ```
 
-If you print the the `event_data`, you should see the following:
+An other way to send event data is to pass the `eventstr`, `binary_contents` and the `priority_levels` as parameters to the `send_event2(...)` function. This method will create the data and send it to the GDS.
+
+Here is an example:
 
 ```python
-print(event_data)
+operations = ";".join([
+    "INSERT INTO multi_event (id, plate, speed, images) VALUES('EVNT2006241023125470', 'ABC123', 90, array('ATID2006241023125470'))",
+    "INSERT INTO \"multi_event-@attachment\" (id, meta, data) VALUES('ATID2006241023125470', 'some_meta', 0x62696e6172795f69645f6578616d706c65)"
+])
 
-# output
-['INSERT INTO multi_event (id, plate, speed, images) VALUES(\'EVNT2006241023125470\', \'ABC123\', 90, array(\'ATID2006241023125470\'));INSERT INTO "multi_event-@attachment" (id, meta, data) VALUES(\'ATID2006241023125470\', \'some_meta\', 0x62696e6172795f69645f6578616d706c65)', {'62696e6172795f69645f6578616d706c65': bytearray(b'\x7f\x7f\x00\x00')}, [[{1: True}]]]
+contents = {
+    "62696e6172795f69645f6578616d706c65" : bytearray([127, 127, 0, 0])
+}
+
+levels = [
+    [
+        {1:True}
+    ]
+]
+
+event_reply = await client.send_event2(eventstr=operations, binary_contents = contents, priority_levels = levels)
 ```
 
-##### SELECT query
+In the `send_event2(...)` method you can omit the `binary_contents` and `priority levels` parameters, but you should specify either the `eventstr` or the `data` parameters or the methods will raise a ValueError.
 
-For a select query, you should invoke the `create_select_query_data(..)` method with the select string you have:
-```python
-querystr = "SELECT * FROM multi_event"
-select_data = GDSClient.MessageUtil.create_select_query_data(querystr)
-print(select_data)
 
-#output will be:
-['SELECT * FROM multi_event', 'PAGES', 60000]
-```
+#### ATTACHMENT-REQUEST message
 
-There are two optional, named parameters here, one stands for the consistency type (by default set to `"PAGES"`), and one for the time-out.
-It's default value is one minute (`60000` ms). These parameters are named `consistency` and `timeout`.
-
-Details about their values can be found on their [Wiki page](https://github.com/arh-eu/gds/wiki/Message-Data#Query-Request---Data-Type-10).
-
-Customized message can be created by:
-```python
-customquery = GDSClient.MessageUtil.create_select_query_data(querystr, consistency="NONE", timeout=100)
-```
-
-##### SELECT attachment
-To select an attachment, you should invoke the `create_attachment_request_data(..)` method with the select string you have:
+To select an attachment you should invoke the `create_attachment_request_data4(...)` with the select string you have. This is a positional argument, so you do not need to specify it by name. This method has no additional parameters, so additional details cannot be specified here. After you have created the data, you can send it with the `send_attachment_request4(...)`.
 
 ```python
 attachmentstr = "SELECT * FROM \"multi_event-@attachment\" WHERE id='ATID2006241023125470' and ownerid='EVNT2006241023125470' FOR UPDATE WAIT 86400"
-attachment_data = GDSClient.MessageUtil.create_attachment_request_data(attachmentstr)
+attachment_data = MessageUtil.create_attachment_request_data4(attachmentstr)
+attachment_reply = await client.send_attachment_request4(data = attachment_data)
 ```
-This method has no additional parameters, so additional details cannot be specified here.
 
-#### Sending custom messages
-
-Once you have a header and a data part, the next step is combining them to have the message which will be sent.
-
-You probably want to send the message and wait for the reply (ACK) as well, so you should use the `send_and_wait_message` method as explained at the start. 
-
-You can use this method by specifying passing the `ws` descriptor, and by giving the `header` and `data` fields the values you have created.
-
-Since this is an asynchronous call, you should not forget to `await` it!
-
-The client will wait for a response and call the proper handler for it. If you receive an `Event ACK`, then the `event_ack(self, response, **kwargs)` method will be called.
+An alternative way to send attachment request message is to pass the select string to the `send_attachment_request4(...)`. With the `send_attachment_request4(...)` method you should specify all parameters by name.
 
 ```python
-
-  def client_code(self, ws):
-    header = GDSClient.MessageUtil.create_header(GDSClient.DataType.QUERY_REQUEST)
-    querydata = GDSClient.MessageUtil.create_select_query_data("SELECT * FROM multi_event")
-
-    await self.send_and_wait_message(ws, header=header, data=querydata)
+attachmentstr = "SELECT * FROM \"multi_event-@attachment\" WHERE id='ATID2006241023125470' and ownerid='EVNT2006241023125470' FOR UPDATE WAIT 86400"
+attachment_reply = await client.send_attachment_request4(attachstr = attachmentstr)
 ```
 
-If you do not want to wait for or do not need the reply you should invoke the `send_message(..)` instead. In this case you do not need to specify the parameters by name, the order of them is `(ws, header, data)`. The `await` keyword can not be omitted in this case either, keep in mind.
+The `send_attachment_request4(...)` method will return with the response. The GDS will send you an attachment request ack message, and if it contains the attachment, the method will return with this message. But if the attachment request ack does not have the attachment, the method will wait for the attachment response message, and will return with that.
+
+You should specify etiher the `data` or the `attachstr` parameters or the method will raise a ValueError.
+
+#### QUERY message
+
+For a select query, you should invoke the `create_query_request_data10(..)` method with the select string you have. There are two optional parameters, one stands for the consistency type (by default set to `"PAGES"`), and one for the time-out. Its default value is one minute (`60000` ms). You should specify all parameters by name: `querystr`, `consistency` and `timeout`.
+
+Details about their values can be found on their [Wiki page](https://github.com/arh-eu/gds/wiki/Message-Data#Query-Request---Data-Type-10).
+
+After you have created the data, you should send it with the `send_query_request10(...)` method.
 
 ```python
-
-  def client_code(self, ws):
-    header = GDSClient.MessageUtil.create_header(GDSClient.DataType.EVENT)
-    insertdata = GDSClient.MessageUtil.create_event_data("INSERT INTO multi_event (id, speed) VALUES('EVNT2006241023125470', 80)")
-
-    await self.send_message(ws, header, insertdata)
+querystr = "SELECT * FROM multi_event"
+query_data = MessageUtil.create_query_request_data10(querystr=querystr, consistency="NONE", timeout=100)
+query_reply, more_page = await client.send_query_request10(data=query_data)
 ```
 
-It is possible that you do not want to save the result as a `json` for some reason. In this case you can pass the `skip_export=True` parameter to your `send..` calls, and in this case the reply will not be dumped.
+You can also send query request by invoking the `send_query_request10(...)` method and passing the `querystr`, `consistency` and `timeout` patameters to it. With the `send_query_request10(...)` and the `create_query_request_data10(...)` you should specify the parameters by name.
 
-The `ConsoleClient` is not made for embedded usage, as the sending and receiving methods are not outsourced to separate threads running endlessly with a possible queue behind them, sending messages and creating responses, and calling the appropriate callbacks. Therefore they will block the main thread until the timeout expires.
+```python
+querystr = "SELECT * FROM multi_event"
+query_reply, more_page = await client.send_query_request10(querystr=querystr, consistency="NONE", timeout=100)
+```
 
-Sending many requests in a very short time frame could lead to unexpected behavior here, as the order of the replies is not fixed, a request sent later might be processed before the one you sent first, therefore the replies will not arrive in the order of the requests.
+In the `send_query_request10(...)` method you can omit the `consistency` and `timeout` parameters, but you should specify either the `querystr` or the `data` parameters or the methods will raise a ValueError.
 
-If you want to use the client in a bigger application as a module, you should inherit the `WebsocketClient` class and customize it for your needs based on the SDK description.
+The GDS will return only one page (by default it means 300 records). If you want more page, not just the first one, you can send a `next_query_page_request`. Because of this, the `send_query_request10(...)` will return not just with the query request ack but with the `has_more_page` value as well.
 
-##### Optional arguments
+You can create the next query page request data with the `create_next_query_page_data12(...)`  method. You should pass the query context descriptor to the method as a positional argument (for more details about that see the [Wiki page](https://github.com/arh-eu/gds/wiki/Message-Data#Query-Request-ACK---Data-Type-11)). Optionally you can pass the timeout parameter as well. But you should sepcify it by name. After creation of the data you can send it with the `send_next_query_page12(...)` method.
 
-The methods callable in the client can always accept named parameters, if you need them later. However, some parameters are used for special cases, and can be specified by you as well:
+You do not have to bother with creating the data, you can pass the query request ack message to the `send_next_query_page12(...)` method. You should specify it by name: `prev_page`.
 
- - `skip_export(=True)` - skips the exporting (saving) of the reply. Useful if you want to test your application without I/O operations.
- - `print_simple(=True)`- The dumping the whole `JSON` to the screen will be skipped, and only the most useful parts of the reply will be printed to the screen.
+The `send_next_query_page12(...)` method will return with the query request ack message and the `has_more_page` value. So you can query all page like this:
 
-More values might be added in the future.
+```python
+querystr = "SELECT * FROM multi_event"
+query_reply, more_page = await client.send_query_request10(querystr=querystr, consistency="NONE", timeout=100)
+print(query_reply)
+while(more_page):
+    query_reply, more_page = await client.send_next_query_page12(prev_page=query_reply)
+    print(query_reply)
+```
+
+You should specify either the `data` or the `prev_page` parameters or the `send_next_query_page12(...)` method will raise a ValueError.
+
+### Sending custom messages
+
+If you want to send custom messages, first you should create the data part as you can see it above. After that you should create the header. You can do that with the `create_header(...)` method. The `create_header(...)` has one positional argument and you can specify many argument by name. The positional argument is the DataType of the message.
+
+The DataTypes are the following:
+```python
+class DataType(Enum):
+    CONNECTION = 0
+    CONNECTION_ACK = 1
+    EVENT = 2
+    EVENT_ACK = 3
+    ATTACHMENT_REQUEST = 4
+    ATTACHMENT_REQUEST_ACK = 5
+    ATTACHMENT_RESPONSE = 6
+    ATTACHMENT_RESPONSE_ACK = 7
+    EVENT_DOCUMENT = 8
+    EVENT_DOCUMENT_ACK = 9
+    QUERY_REQUEST = 10
+    QUERY_REQUEST_ACK = 11
+    NEXT_QUERY_PAGE_REQUEST = 12
+```
+
+There are many parameters you can specify by name:
+
+  - 'username', by default: "user"
+  - 'msgid', the id of the message.
+  - 'create_time'
+  - 'request_time'
+  - 'fragmented', by default: False
+  - 'first_fragment'
+  - 'last_fragment'
+  - 'offset'
+  - 'full_data_size'
+
+If you want more details about the header, see the [Wiki page](https://github.com/arh-eu/gds/wiki/Message-Headers). Here is an example of the header creation:
+
+```python
+header = MessageUtil.create_header(DataType.QUERY_REQUEST, username="customuser")
+```
+
+After the creation of the data and the header you can send the message with the appropriate `send...` method:
+
+```python
+querystr = "SELECT * FROM multi_event"
+query_data = MessageUtil.create_query_request_data10(querystr=querystr, consistency="NONE", timeout=100)
+header = MessageUtil.create_header(DataType.QUERY_REQUEST, username="customuser")
+query_reply, more_page = await client.send_query_request10(data = query_data, header = header)
+```

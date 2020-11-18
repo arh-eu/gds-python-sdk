@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+
 import asyncio
 import json
 import msgpack
@@ -15,7 +16,8 @@ from enum import Enum
 from OpenSSL import crypto
 import tempfile
 import os
-
+from multiprocessing import Process, Pool, Value
+import concurrent
 
 class MessageException(Exception):
     pass
@@ -55,7 +57,7 @@ class StatusCode(Enum):
     BANDWIDTH_LIMIT_EXCEEDED = 509
     NOT_EXTENDED = 510
 
-class WebsocketClient:
+class GDSClient:
     def __init__(self, **kwargs):
         self.url = kwargs.get('url', "ws://127.0.0.1:8888/gate")
         self.username = kwargs.get('username', "user")
@@ -73,68 +75,9 @@ class WebsocketClient:
 
         if(self.url.startswith("wss") and kwargs.get('cert') and kwargs.get('secret')):
             self.initTLS(kwargs.get('cert'), kwargs.get('secret'))
+        self.ws = None
         self.args = kwargs
 
-    async def run(self):
-        async with websockets.connect(self.url, ssl=self.ssl) as ws:
-            logindata = MessageUtil.create_message_from_header_and_data(
-                MessageUtil.create_header(
-                    DataType.CONNECTION, username=self.username),
-                MessageUtil.create_login_data(reserved=[self.password]))
-            print("Sending <login> message..")
-            await self.send(ws, logindata)
-            try:
-                print("Waiting <login> reply..")
-                login_reply = await self.wait_for_reply(ws)
-            except TimeoutError as e:
-                print('Login message ACK timed out!')
-                raise e
-            else:
-                self.connection_ack(login_reply)
-                return await self.client_code(ws)
-
-    async def client_code(self, ws: websockets.WebSocketClientProtocol):
-        raise NotImplementedError(
-            "GDSClient should be inherited from with an overridden 'client_code(..)' method!")
-
-    async def send(self, ws: websockets.WebSocketClientProtocol, data):
-        await ws.send(MessageUtil.pack(data))
-
-    async def recv(self, ws: websockets.WebSocketClientProtocol):
-        data = await ws.recv()
-        return MessageUtil.unpack(data)
-
-    async def wait_for_reply(self, ws: websockets.WebSocketClientProtocol):
-        try:
-            return await asyncio.wait_for(self.recv(ws), self.timeout)
-        except asyncio.TimeoutError as e:
-            raise TimeoutError(
-                f"The given timeout ({self.timeout} seconds) has passed without any response from the server!")
-        except Exception as e:
-            raise e
-
-    def process_incoming_message(self, response: list, **kwargs):
-        if(len(response) < 11):
-            raise MessageException(
-                f"Invalid message format received!\nExpected an array of length 11, found {len(response)} instead!")
-        else:
-            message_type = DataType(response[9])
-            print(f"Incoming message of type {message_type.name}")
-            if message_type == DataType.CONNECTION_ACK:
-                return self.connection_ack(response, **kwargs)
-            elif message_type == DataType.EVENT_ACK:
-                return self.event_ack(response, **kwargs)
-            elif message_type == DataType.ATTACHMENT_REQUEST_ACK:
-                return self.attachment_ack(response, **kwargs)
-            elif message_type == DataType.ATTACHMENT_RESPONSE:
-                return self.attachment_response(response, **kwargs)
-            elif message_type == DataType.EVENT_DOCUMENT_ACK:
-                return self.event_ack(response, **kwargs)
-            elif message_type == DataType.QUERY_REQUEST_ACK:
-                return self.query_ack(response, **kwargs)
-            else:
-                raise MessageException(
-                    f"Invalid MessageType found for the client: {message_type}")
 
     def initTLS(self, cert_path: str, password : str):
         try:
@@ -164,95 +107,219 @@ class WebsocketClient:
             raise Exception("Could not initialize TLS connection!", e)
 
 
+    async def send(self, data):
+        await self.ws.send(MessageUtil.pack(data))
+
+    async def recv(self):
+        data = await self.ws.recv()
+        return MessageUtil.unpack(data)
+
+    async def wait_for_reply(self):
+        try:
+            return await asyncio.wait_for(self.recv(), self.timeout)
+        except asyncio.TimeoutError as e:
+            raise TimeoutError(
+                f"The given timeout ({self.timeout} seconds) has passed without any response from the server!")
+        except Exception as e:
+            raise e
+
+    async def __aenter__(self):
+        self.ws = await websockets.connect(self.url, ssl=self.ssl)
+        logindata = MessageUtil.create_message_from_header_and_data(
+            MessageUtil.create_header(
+                DataType.CONNECTION, username=self.username),
+            MessageUtil.create_login_data(reserved=[self.password]))
+        print("Sending <login> message..")
+        await self.send(logindata)
+        try:
+            print("Waiting <login> reply..")
+            login_reply = await self.wait_for_reply()
+        except TimeoutError as e:
+            print('Login message ACK timed out!')
+            raise e
+        else:
+            if (self.is_ack_ok(login_reply)):
+                print("The login was successful!")
+                print(login_reply)
+            else:
+                print("Login unsuccessful!\nDetails:")
+                print("-" + str(login_reply[10][1]))
+                print("-" + str(login_reply[10][2]))
+        return self
+
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.ws.close()
+        print("Client disconnected!")
+        pass
+
+
     """
     Methods for sending data
     """
-    async def send_message(self, ws: websockets.WebSocketClientProtocol, header: list, data):
+    async def send_message(self, header: list, data):
         msg = MessageUtil.create_message_from_header_and_data(header, data)
-        await self.send(ws, msg)
+        await self.send(msg)
         return msg
 
-    async def query(self, ws: websockets.WebSocketClientProtocol, querystr: str, **queryargs):
-        querydata = MessageUtil.create_select_query_data(querystr, **queryargs)
-        querymsg = MessageUtil.create_message_from_data(
-            DataType.QUERY_REQUEST, querydata, username=self.args.get('username'))
-        await self.send(ws, querymsg)
-        return querymsg
 
-    async def next_query(self, ws: websockets.WebSocketClientProtocol, context: list):
-        nextquery = MessageUtil.create_next_query_data(context)
-        msg = MessageUtil.create_message_from_data(
-            DataType.NEXT_QUERY_PAGE_REQUEST, nextquery, username=self.args.get('username'))
-        await self.send(ws, msg)
-        return msg
+    async def send_event2(self, **eventargs):
+        if(eventargs.get('data')):
+            if(eventargs.get('header')):
+                event_reply = await self.send_and_wait_message(header=eventargs.get('header'), data = eventargs.get('data'))
+            else:
+                eventmsg = MessageUtil.create_message_from_data(
+                    DataType.EVENT, username=self.args.get('username'), **eventargs)
+                event_reply = await self.send_and_wait_message(message=eventmsg)
+        elif(eventargs.get('eventstr')):
+            eventdata = MessageUtil.create_event_data2(**eventargs, files=self.args.get('attachments'))
+            eventmsg = MessageUtil.create_message_from_data(
+                DataType.EVENT, data = eventdata, username=self.args.get('username'), **eventargs)
+            event_reply = await self.send_and_wait_message(message=eventmsg)
+        else:
+            raise ValueError(
+                "Neither the 'data' nor the 'eventstr' value were specified!")
+        return await self.check_incoming_message_type(DataType.EVENT_ACK, event_reply)
 
-    async def event(self, ws: websockets.WebSocketClientProtocol, eventstr: str, **eventargs):
-        eventdata = MessageUtil.create_event_data(
-            eventstr, **eventargs, files=self.args.get('attachments'))
-        eventmsg = MessageUtil.create_message_from_data(
-            DataType.EVENT, eventdata, username=self.args.get('username'))
-        await self.send(ws, eventmsg)
-        return eventmsg
+    async def send_attachment_request4(self, **attachargs):
+        if(attachargs.get('data')):
+            if(attachargs.get('header')):
+                response = await self.send_and_wait_message(header=attachargs.get('header'), data = attachargs.get('data'))
+            else:
+                attachmsg = MessageUtil.create_message_from_data(
+                    DataType.ATTACHMENT_REQUEST, username=self.args.get('username'), **attachargs)
+                response = await self.send_and_wait_message(message=attachmsg)
+        elif(attachargs.get('attachstr')):
+            attachdata = MessageUtil.create_attachment_request_data4(attachargs.get('attachstr'))
+            attachmsg = MessageUtil.create_message_from_data(
+                DataType.ATTACHMENT_REQUEST, data = attachdata, username=self.args.get('username'), **attachargs)
+            response = await self.send_and_wait_message(message=attachmsg)
+        else:
+            raise ValueError(
+                "Neither the 'data' nor the 'attachstr' value were specified!")
+        response_body = response[10]
+        if(not self.is_ack_ok(response, [200, 201, 202])):
+            should_wait = False
+        else:
+            if(response_body[1][1].get('attachment')):
+                should_wait = False
+            else:
+                should_wait = True
+        if(should_wait):
+            response = await self.wait_for_reply()
+            await self.__send_attachment_response_ack7(
+                requestids=response[10][0].get('requestids'),
+                ownertable=response[10][0].get('ownertable'),
+                attachmentid=response[10][0].get('attachmentid')
+            )
+            return await self.check_incoming_message_type(DataType.ATTACHMENT_RESPONSE, response)
+        else:
+            return await self.check_incoming_message_type(DataType.ATTACHMENT_REQUEST_ACK, response)
 
-    async def attachment(self, ws: websockets.WebSocketClientProtocol, attachstr: str, **attachargs):
-        attachdata = MessageUtil.create_attachment_request_data(
-            attachstr, **attachargs)
-        attachmsg = MessageUtil.create_message_from_data(
-            DataType.ATTACHMENT_REQUEST, attachdata, username=self.args.get('username'))
-        await self.send(ws, attachmsg)
-        return attachmsg
-
-    async def attachment_response_ack(self, ws: websockets.WebSocketClientProtocol, **kwargs):
-        response_ack_data = MessageUtil.create_attachment_response_ack_data(
+    async def __send_attachment_response_ack7(self, **kwargs):
+        response_ack_data = MessageUtil.create_attachment_response_ack_data7(
             **kwargs)
         response_ack_message = MessageUtil.create_message_from_data(
-            DataType.ATTACHMENT_RESPONSE_ACK, response_ack_data, username=self.args.get('username'))
-        await self.send(ws, response_ack_message)
+            DataType.ATTACHMENT_RESPONSE_ACK, data=response_ack_data, username=self.args.get('username'), **kwargs)
+        await self.send(response_ack_message)
         return response_ack_message
+
+    async def send_event_document8(self, **eventdocargs):
+        if(eventdocargs.get('data')):
+            if(eventdocargs.get('header')):
+                event_document_reply = await self.send_and_wait_message(header=eventdocargs.get('header'), data = eventdocargs.get('data'))
+            else:
+                msg = MessageUtil.create_message_from_data(DataType.EVENT_DOCUMENT, username = self.args.get('username'), **eventdocargs)
+                event_document_reply = await self.send_and_wait_message(message=msg)
+        else:
+            event_document_data = MessageUtil.create_event_document_data8(**eventdocargs)
+            msg = MessageUtil.create_message_from_data(DataType.EVENT_DOCUMENT, data=event_document_data, username = self.args.get('username'), **eventdocargs)
+            event_document_reply = await self.send_and_wait_message(message=msg)
+        return await self.check_incoming_message_type(DataType.EVENT_DOCUMENT_ACK, event_document_reply)
+
+    async def send_query_request10(self, **queryargs):
+        if(queryargs.get('data')):
+            if(queryargs.get('header')):
+                query_reply = await self.send_and_wait_message(header=queryargs.get('header'), data = queryargs.get('data'))
+            else:
+                querymsg = MessageUtil.create_message_from_data(
+                    DataType.QUERY_REQUEST, username=self.args.get('username'), **queryargs)
+                query_reply = await self.send_and_wait_message(message=querymsg)
+        elif(queryargs.get('querystr')):
+            querydata = MessageUtil.create_query_request_data10(**queryargs)
+            querymsg = MessageUtil.create_message_from_data(
+                DataType.QUERY_REQUEST, data=querydata, username=self.args.get('username'), **queryargs)
+            query_reply = await self.send_and_wait_message(message=querymsg)
+        else:
+            raise ValueError(
+                "Neither the 'data' nor the 'querystr' value were specified!")
+        reply = await self.check_incoming_message_type(DataType.QUERY_REQUEST_ACK, query_reply)
+        return reply, reply[10][1][2]
+        
+    async def send_next_query_page12(self, **nextqueryargs):
+        if(nextqueryargs.get('data')):
+            if(nextqueryargs.get('header')):
+                next_query_reply = await self.send_and_wait_message(header=nextqueryargs.get('header'), data = nextqueryargs.get('data'))
+            else:
+                msg = MessageUtil.create_message_from_data(
+                    DataType.NEXT_QUERY_PAGE_REQUEST, username=self.args.get('username'), **nextqueryargs)
+                next_query_reply = await self.send_and_wait_message(message=msg)
+        elif(nextqueryargs.get('prev_page')):
+            prev_page = nextqueryargs.get('prev_page')
+            context = prev_page[10][1][3]
+            nextquery = MessageUtil.create_next_query_page_data12(context, **nextqueryargs)
+            msg = MessageUtil.create_message_from_data(
+                DataType.NEXT_QUERY_PAGE_REQUEST, data=nextquery, username=self.args.get('username'), **nextqueryargs)
+            next_query_reply = await self.send_and_wait_message(message=msg)
+        else:
+            raise ValueError(
+                "Neither the 'data' nor the 'prev_page' value were specified!")
+        reply = await self.check_incoming_message_type(DataType.QUERY_REQUEST_ACK, next_query_reply)
+        return reply, reply[10][1][2]
+
 
     """
     other utilities
     """
 
-    def is_ack_ok(self, ack_mesage: list, ok_statuses=[200]) -> bool:
-        return (ack_mesage[10] is not None) and (ack_mesage[10][0] in ok_statuses)
+    def is_ack_ok(self, response: list, ok_statuses=[200]) -> bool:
+        return (response[10] is not None) and (response[10][0] in ok_statuses)
 
-    async def send_and_wait_event(self, ws: websockets.WebSocketClientProtocol, eventstr: str, **kwargs):
-        message = await self.event(ws, eventstr, **kwargs)
-        self.process_incoming_message(await self.wait_for_reply(ws), original=message, **kwargs)
 
-    async def send_and_wait_attachment(self, ws: websockets.WebSocketClientProtocol, attachstr: str, **kwargs):
-        await self.attachment(ws, attachstr, **kwargs)
-        should_wait = self.process_incoming_message(await self.wait_for_reply(ws))
-        if(should_wait):
-            response = await self.wait_for_reply(ws)
-            self.process_incoming_message(response, **kwargs)
-            print("Sending the Attachment ACK back to the GDS..")
-            await self.attachment_response_ack(
-                ws,
-                requestids=response[10][0].get('requestids'),
-                ownertable=response[10][0].get('ownertable'),
-                attachmentid=response[10][0].get('attachmentid')
-            )
+    async def check_incoming_message_type(self, expected: DataType, response:list, **kwargs):
+        message_type = DataType(response[9])
+        if(message_type == expected):
+            return response
+        else:
+            if(message_type == DataType.ATTACHMENT_RESPONSE):
+                await self.__send_attachment_response_ack7(
+                    requestids=response[10][0].get('requestids'),
+                    ownertable=response[10][0].get('ownertable'),
+                    attachmentid=response[10][0].get('attachmentid')
+                )
+            elif(message_type == DataType.EVENT_DOCUMENT):
+                c = len(response[10][2])
+                result = []
+                for i in range(c):
+                    result.append([201, "", {}])
+                event_document_ack_data = MessageUtil.create_event_document_ack_data9(result = result)
+                message = MessageUtil.create_message_from_data(DataType.EVENT_DOCUMENT_ACK, data=event_document_ack_data, **kwargs)
+                await self.send(message)
+            raise MessageException(
+                    f"Unexpected MessageType found for the client: {message_type.name}, message: {response}")
 
-    async def send_and_wait_query(self, ws: websockets.WebSocketClientProtocol, querystr: str, **kwargs):
-        message = await self.query(ws, querystr, **kwargs)
-        more_page, context = self.process_incoming_message(await self.wait_for_reply(ws), original=message, **kwargs)
-        if(kwargs.get('all')):
-            while(more_page):
-                await self.next_query(ws, context)
-                more_page, context = self.process_incoming_message(await self.wait_for_reply(ws), original=message, **kwargs)
 
-    async def send_and_wait_message(self, ws: websockets.WebSocketClientProtocol, **kwargs):
+    async def send_and_wait_message(self, **kwargs):
         if(kwargs.get('header') and kwargs.get('data')):
-            await self.send_message(ws, kwargs.get('header'), kwargs.get('data'))
+            await self.send_message(kwargs.get('header'), kwargs.get('data'))
         elif(kwargs.get('message')):
-            await self.send(ws, kwargs.get('message'))
+            await self.send(kwargs.get('message'))
         else:
             raise ValueError(
-                "Neither the 'header' and 'body' nor the 'message' value were specified!")
-        response = await self.wait_for_reply(ws)
-        self.process_incoming_message(response, **kwargs)
+                "Neither the 'header' and 'data' nor the 'message' value were specified!")
+        response = await self.wait_for_reply()
+        return response
+
 
     def save_attachment(self, name: str, attachment: int, format="unknown", use_timestamp=True):
         pathlib.Path("attachments").mkdir(parents=True, exist_ok=True)
@@ -285,73 +352,7 @@ class WebsocketClient:
             print(f"Could not save {filepath}! Details:")
             print(e)
 
-    """
-    default methods
-    """
-
-    def connection_ack(self, response: list, **kwargs):
-        if (self.is_ack_ok(response)):
-            print("The login was successful!")
-        else:
-            print("Login unsuccessful!\nDetails:")
-            print("-" + str(response[10][1]))
-            print("-" + str(response[10][2]))
-            raise
-
-    def event_ack(self, response: list, **kwargs):
-        self.print_reply(response, **kwargs)
-        response_body = response[10]
-        if(not self.is_ack_ok(response, [200, 201, 202])):
-            print("Error during the event request!")
-            self.printErrorInACK(response_body)
-        else:
-            print(
-                f"Event returned {(len(response_body[1]))} results total.")
-            if not kwargs.get('skip_export'):
-                self.save_object_to_json(response[1], response)
-
-    def attachment_ack(self, response: list, **kwargs) -> bool:
-        self.print_reply(response, **kwargs)
-        response_body = response[10]
-        if(not self.is_ack_ok(response, [200, 201, 202])):
-            print("Error during the attachment request!")
-            self.printErrorInACK(response_body)
-            return False
-        else:
-            if(response_body[1][1].get('attachment')):
-                attachment = response_body[1][1].get('attachment')
-                print(f"We got the attachment!")
-                if not kwargs.get('skip_export'):
-                    self.save_attachment(response_body[1][1].get(
-                        'attachmentid'), attachment, format=response_body[1][1].get('meta'))
-                return False
-            else:
-                print("Attachment not yet received..")
-                return True
-
-    def attachment_response(self, response: list, **kwargs):
-        self.print_reply(response, **kwargs)
-        response_body = response[10]
-        attachment = response_body[0].get('attachment')
-        print(f"We got the attachment!")
-        if not kwargs.get('skip_export'):
-            self.save_attachment(response_body[0].get(
-                'attachmentid'), attachment, format=response_body[0].get('meta'))
-
-    def query_ack(self, response: list, **kwargs):
-        self.print_reply(response, **kwargs)
-        max_length = 12
-        response_body = response[10]
-        if not self.is_ack_ok(response):
-            print("Error during the query!")
-            self.printErrorInACK(response_body)
-            return False, None
-        else:
-            print(
-                f"Query was successful! Total of {response_body[1][0]} record(s) returned.")
-            if not kwargs.get('skip_export'):
-                self.save_object_to_json(response[1], response)
-            return response_body[1][2], response_body[1][3]
+    
     
     def print_reply(self, message: any, **kwargs):
         if kwargs.get('print_simple'):
@@ -410,23 +411,9 @@ class MessageUtil:
             kwargs.get('reserved', [None])
         ]
 
-    @staticmethod
-    def create_select_query_data(querystr: str, **kwargs):
-        return [
-            querystr,
-            kwargs.get('consistency', "PAGES"),
-            kwargs.get('timeout', 60000)
-        ]
 
     @staticmethod
-    def create_next_query_data(context: list, **kwargs):
-        return [
-            context,
-            kwargs.get('timeout', 60000)
-        ]
-
-    @staticmethod
-    def create_event_data(eventstr: str, **kwargs):
+    def create_event_data2(**kwargs):
         binary_contents = kwargs.get('binary_contents', {})
         if(kwargs.get('files')):
             for fname in kwargs.get('files').split(';'):
@@ -439,17 +426,17 @@ class MessageUtil:
                         f"The file named '{fname}' does not exist or could not be opened!")
 
         return [
-            eventstr,
+            kwargs.get('eventstr'),
             binary_contents,
             kwargs.get('priority_levels', [])
         ]
 
     @staticmethod
-    def create_attachment_request_data(attstr: str):
+    def create_attachment_request_data4(attstr: str):
         return attstr
 
     @staticmethod
-    def create_attachment_response_ack_data(**kwargs):
+    def create_attachment_response_ack_data7(**kwargs):
         return [
             kwargs.get('globalstatus', 200),
             [
@@ -463,9 +450,43 @@ class MessageUtil:
             None
         ]
 
+
     @staticmethod
-    def create_message_from_data(header_type: DataType, data, **kwargs):
-        return MessageUtil.create_message_from_header_and_data(MessageUtil.create_header(header_type, **kwargs), data)
+    def create_event_document_data8(**kwargs):
+        return [
+            kwargs.get('tablename'),
+            kwargs.get('fielddescriptors'),
+            kwargs.get('records'),
+            kwargs.get('returningoptions', dict({}))
+        ]
+
+
+    @staticmethod
+    def create_event_document_ack_data9(**kwargs):
+        return [
+            kwargs.get('globalstatus', 200),
+            kwargs.get('result'),
+            None
+        ]
+
+    @staticmethod
+    def create_query_request_data10(**kwargs):
+        return [
+            kwargs.get('querystr'),
+            kwargs.get('consistency', "PAGES"),
+            kwargs.get('timeout', 60000)
+        ]
+
+    @staticmethod
+    def create_next_query_page_data12(context: list, **kwargs):
+        return [
+            context,
+            kwargs.get('timeout', 60000)
+        ]
+
+    @staticmethod
+    def create_message_from_data(header_type: DataType, **kwargs):
+        return MessageUtil.create_message_from_header_and_data(MessageUtil.create_header(header_type, **kwargs), kwargs.get('data'))
 
     @staticmethod
     def hex(text: str) -> str:
