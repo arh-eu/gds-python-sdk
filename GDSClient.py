@@ -254,8 +254,11 @@ class GDSClient:
             raise ValueError(
                 "Neither the 'data' nor the 'querystr' value were specified!")
         reply = await self.check_incoming_message_type(DataType.QUERY_REQUEST_ACK, query_reply)
-        return reply, reply[10][1][2]
-        
+        if(self.is_ack_ok(reply)):
+            return reply, reply[10][1][2]
+        else:
+            return reply, None
+       
     async def send_next_query_page12(self, **nextqueryargs):
         if(nextqueryargs.get('data')):
             if(nextqueryargs.get('header')):
@@ -275,7 +278,10 @@ class GDSClient:
             raise ValueError(
                 "Neither the 'data' nor the 'prev_page' value were specified!")
         reply = await self.check_incoming_message_type(DataType.QUERY_REQUEST_ACK, next_query_reply)
-        return reply, reply[10][1][2]
+        if(self.is_ack_ok(reply)):
+            return reply, reply[10][1][2]
+        else:
+            return reply, None
 
 
     """
