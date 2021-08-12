@@ -2,6 +2,7 @@
 
 from GDSClient import GDSClient, MessageUtil, DataType
 import asyncio
+import sys, traceback
 
 import argparse
 
@@ -126,4 +127,5 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         print("Some error happened during running, client is now closing! Details:")
-        print(str(type(e)) + " - " + str(e))
+        traceback.print_exc(file=sys.stdout)
+        print(str(type(e)) + " - " + str(e) + "")

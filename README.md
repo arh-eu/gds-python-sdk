@@ -231,6 +231,8 @@ The GDSClient `send...()` methods will wait for the response to the message they
 
 The `send...()` methods are async functions, so you have to write `await` before them.
 
+#### &#x26A0; The replies you receive will follow the JSON (unpacked from MessagePack) format of the message specification. This means that there will be no extra classes introduced, as the compliance between JSON an Python objects is clear. Therefore the message structure and the Python object structure is the same.
+
 #### EVENT messages
 
 The INSERT, UPDATE and MERGE messages have the same format, since they are all _event_ messages. This means, all three can be created by the `create_event_data2(..)` method of the MessageUtil class.
