@@ -2,11 +2,11 @@
 
 To install and use the `Python` library you have to install two components our classes depend on, the MessagePack wrappers for the messages and the WebSocket protocol for the communication.
 
-The first one, the `msgpack` module can be installed by typing `$ pip install msgpack` into your terminal or command line (the github repo can be found [here](https://github.com/msgpack/msgpack-python)). The version used for this module was `0.6.2`.
+The first one, the `msgpack` module can be installed by typing `$ pip install msgpack` into your terminal or command line (the github repo can be found [here](https://github.com/msgpack/msgpack-python)). The version used during creating this module was `0.6.2`, but the latest version (which at the time of writing is `1.0.3`) should work as well.
 
-For the `websockets` library, you need to enter the `$ pip install websockets` command (its official site is [here](https://websockets.readthedocs.io/en/stable/intro.html)). The client uses version `8.1` in its code.
+For the `websockets` library, you need to enter the `$ pip install websockets` command (its official site is [here](https://readthedocs.org/projects/websockets/)). The client used version `8.1` in its code, but `9.0.1` is already out as of Jan. 2022.
 
-For TLS connection you will also need the `pyOpenSSL` libraries, which can be installed by `pip install pyopenssl`. We used the version `19.1.0` at the time of this documentation.
+For TLS connection you will also need the `pyOpenSSL` libraries, which can be installed by `pip install pyopenssl`. We used the version `19.1.0` at the time of this documentation, but version `21.0.0` is available.
 
 Please keep in mind that you need to have `Python 3.6.1` or newer to install the dependencies (you can install it from [here](https://www.python.org/downloads/)).
 
